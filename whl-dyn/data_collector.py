@@ -29,7 +29,7 @@ from cyber.python.cyber_py3 import cyber_time
 from modules.common_msgs.chassis_msgs import chassis_pb2
 from modules.common_msgs.control_msgs import control_cmd_pb2
 from modules.common_msgs.localization_msgs import localization_pb2
-from modules.tools.vehicle_calibration.plot_data import Plotter
+from plot_data import Plotter
 
 
 class DataCollector(object):

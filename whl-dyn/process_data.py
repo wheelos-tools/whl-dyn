@@ -19,15 +19,12 @@
 This module provide function to plot the speed control info from log csv file
 """
 
-import math
 import sys
 
 import numpy as np
-import tkinter.filedialog
 
-from modules.tools.vehicle_calibration.process import get_start_index
-from modules.tools.vehicle_calibration.process import preprocess
-from modules.tools.vehicle_calibration.process import process
+from process import preprocess
+from process import process
 
 
 class Plotter(object):
@@ -75,10 +72,6 @@ def main():
     if len(sys.argv) == 2:
         # get the latest file
         file_path = sys.argv[1]
-    else:
-        file_path = tkinter.filedialog.askopenfilename(
-            initialdir="/home/caros/.ros",
-            filetypes=(("csv files", ".csv"), ("all files", "*.*")))
     plotter = Plotter(file_path)
     plotter.process_data(file_path)
     plotter.save_data()

@@ -30,7 +30,7 @@ from datetime import datetime
 
 from cyber.python.cyber_py3 import cyber
 from modules.dreamview.proto import preprocess_table_pb2
-from modules.tools.vehicle_calibration.sanity_check import sanity_check
+from sanity_check import sanity_check
 
 flags.DEFINE_string('vehicle_type', '', 'The vehicle type to be calibrated')
 flags.DEFINE_string('data_path', '/apollo/output', 'Default output data path')

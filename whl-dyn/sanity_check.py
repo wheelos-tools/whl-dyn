@@ -26,8 +26,7 @@ from absl import logging
 
 from cyber.python.cyber_py3.record import RecordReader
 import modules.common_msgs.config_msgs.vehicle_config_pb2 as vehicle_config_pb2
-import modules.tools.common.proto_utils as proto_utils
-import modules.tools.common.file_utils as file_utils
+from util import get_input_dir_data_size, get_pb_from_text_file
 
 # could be a list
 ConfFile = 'vehicle_param.pb.txt'
@@ -49,7 +48,7 @@ def get_vehicle(path):
 
 
 def missing_input_path(path):
-    input_size = file_utils.getInputDirDataSize(path)
+    input_size = get_input_dir_data_size(path)
     if input_size == 0:
         return True
     return False
@@ -97,7 +96,7 @@ def parse_error(path):
     for vehicle in vehicles:
         conf = os.path.join(path, vehicle, ConfFile)
         try:
-            proto_utils.get_pb_from_text_file(conf, pb_value)
+            get_pb_from_text_file(conf, pb_value)
             return False
         except text_format.ParseError:
             logging.error(
@@ -123,7 +122,7 @@ def missing_field(path):
         logging.info(f'conf_file: {conf_file}')
         # reset for each vehicle to avoid overwrited
         pb_value = vehicle_config_pb2.VehicleConfig()
-        conf = proto_utils.get_pb_from_text_file(conf_file, pb_value)
+        conf = get_pb_from_text_file(conf_file, pb_value)
         logging.info(f'vehicles conf {conf}')
         if not check_vehicle_id(conf):
             result.append("vehicle_id")
