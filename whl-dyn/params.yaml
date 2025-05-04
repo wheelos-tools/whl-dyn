@@ -1,0 +1,15 @@
+throttle:
+  start: 0.2
+  stop: 0.8
+  step: 0.2
+
+target_speed:
+  values: [5.0, 10.0, 15.0]
+
+brake:
+  start: 0.2
+  stop: 0.8
+  step: 0.2
+
+settling_time: 5.0
+output_root: "./test_results"
