@@ -22,6 +22,7 @@ Data Collector
 import os
 import signal
 import sys
+import threading
 import time
 
 from cyber.python.cyber_py3 import cyber
@@ -51,6 +52,7 @@ class DataCollector(object):
         self.in_session = False
 
         self.outfile = ""
+        self.file_lock = threading.Lock()
 
     def run(self, cmd):
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -97,6 +99,7 @@ class DataCollector(object):
         self.controlcmd.steering_rate = 100
         self.controlcmd.steering_target = 0
         self.controlcmd.gear_location = chassis_pb2.Chassis.GEAR_DRIVE
+        self.controlcmd.motion_mode = chassis_pb2.Chassis.MOTION_ACKERMANN
 
         self.canmsg_received = False
         self.case = 'a'
@@ -110,6 +113,13 @@ class DataCollector(object):
 
     def signal_handler(self, signal, frame):
         self.in_session = False
+        # Ensure file is closed safely
+        try:
+            with self.file_lock:
+                if hasattr(self, 'file') and not self.file.closed:
+                    self.file.close()
+        except:
+            pass  # Ignore errors during shutdown
 
     def callback_localization(self, data):
         """
@@ -171,18 +181,22 @@ class DataCollector(object):
         self.control_pub.write(self.controlcmd)
         self.write_file(self.controlcmd.header.timestamp_sec, 1)
         if self.in_session == False:
-            self.file.close()
+            with self.file_lock:
+                if hasattr(self, 'file') and not self.file.closed:
+                    self.file.close()
 
     def write_file(self, time, io):
         """
         Write Message to File
         """
-        self.file.write(
-            "%.4f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" %
-            (time, io, 1, self.controlcmd.brake, self.controlcmd.throttle,
-             self.controlcmd.gear_location, self.vehicle_speed, self.engine_rpm,
-             self.driving_mode, self.throttle_percentage, self.brake_percentage,
-             self.gear_location, self.acceleration))
+        with self.file_lock:
+            self.file.write(
+                "%.4f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" %
+                (time, io, 1, self.controlcmd.brake, self.controlcmd.throttle,
+                 self.controlcmd.gear_location, self.vehicle_speed, self.engine_rpm,
+                 self.driving_mode, self.throttle_percentage, self.brake_percentage,
+                 self.gear_location, self.acceleration))
+            self.file.flush()  # Ensure data is written to disk immediately
 
 
 def main():
