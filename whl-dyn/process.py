@@ -25,7 +25,8 @@ import numpy as np
 import scipy.signal as signal
 
 
-warnings.simplefilter('ignore', np.RankWarning)
+# Ignore numpy warnings (RankWarning may not exist in newer numpy versions)
+warnings.filterwarnings('ignore')
 
 SPEED_INTERVAL = 0.2
 SPEED_DELAY = 130  # Speed report delay relative to IMU information

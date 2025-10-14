@@ -16,10 +16,22 @@
 # limitations under the License.
 ###############################################################################
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}"  )" && pwd  )"
-rm $DIR/result.csv
-for f in `ls ${1}/*_recorded.csv`
-do
-    echo "Processing $f"
-    python -W ignore $DIR/process_data.py $f
-done
+# This script is deprecated. Please use the new process_data.py script instead.
+# The new script provides all the same functionality with a better interface.
+
+echo "WARNING: This script is deprecated."
+echo "Please use the new process_data.py script instead:"
+echo ""
+echo "  # Process a single file:"
+echo "  python process_data.py data.csv"
+echo ""
+echo "  # Process all *_recorded.csv files in a directory:"
+echo "  python process_data.py data/"
+echo ""
+echo "  # Process with custom output directory and clear previous results:"
+echo "  python process_data.py data/ -o results/ --clear"
+echo ""
+
+# For backward compatibility, we still support the old usage
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+python -W ignore "$DIR/process_data.py" "$@"
