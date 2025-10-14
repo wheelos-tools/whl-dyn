@@ -31,7 +31,6 @@ from cyber.python.cyber_py3 import cyber_time
 from modules.common_msgs.chassis_msgs import chassis_pb2
 from modules.common_msgs.control_msgs import control_cmd_pb2
 from modules.common_msgs.localization_msgs import localization_pb2
-from plot_data import Plotter
 
 
 class DataCollector(object):
@@ -231,7 +230,6 @@ def main():
     node = cyber.Node("data_collector")
 
     data_collector = DataCollector(node, args.output_dir)
-    plotter = Plotter()
     node.create_reader('/apollo/localization/pose',
                        localization_pb2.LocalizationEstimate,
                        data_collector.callback_localization)
@@ -265,7 +263,6 @@ def main():
 
     # Interactive mode
     print('Enter q to quit.')
-    print('Enter p to plot result from last run.')
     print('Enter x to remove result from last run.')
     print('Enter x y z, where x is throttle value (positive), ' +
           'y is speed limit (positive), z is brake value (positive).')
@@ -281,19 +278,12 @@ def main():
         elif len(cmd) == 1:
             if cmd[0] == "q":
                 break
-            elif cmd[0] == "p":
-                print('Plotting result.')
-                if os.path.exists(data_collector.outfile):
-                    plotter.process_data(data_collector.outfile)
-                    plotter.plot_result()
-                else:
-                    print('File does not exist: %s' % data_collector.outfile)
             elif cmd[0] == "x":
                 print('Removing last result.')
-                if os.path.exists(data_collector.outfile):
+                if hasattr(data_collector, 'outfile') and os.path.exists(data_collector.outfile):
                     os.remove(data_collector.outfile)
                 else:
-                    print('File does not exist: %s' % data_collector.outfile)
+                    print('File does not exist: %s' % (getattr(data_collector, 'outfile', 'Unknown')))
         elif len(cmd) == 3:
             data_collector.run(cmd)
 
