@@ -19,6 +19,7 @@
 Data Collector
 """
 
+import argparse
 import os
 import signal
 import sys
@@ -38,7 +39,7 @@ class DataCollector(object):
     DataCollector Class
     """
 
-    def __init__(self, node):
+    def __init__(self, node, output_dir="."):
         self.sequence_num = 0
         self.control_pub = node.create_writer('/apollo/control',
                                               control_cmd_pb2.ControlCommand)
@@ -52,29 +53,44 @@ class DataCollector(object):
         self.in_session = False
 
         self.outfile = ""
+        self.output_dir = output_dir
         self.file_lock = threading.Lock()
 
     def run(self, cmd):
         signal.signal(signal.SIGINT, self.signal_handler)
 
+        # Validate command format
+        if len(cmd) != 3:
+            print("Error: Invalid command format. Expected 3 values: throttle speed_limit brake")
+            return
+
+        try:
+            throttle = float(cmd[0])
+            speed_limit = float(cmd[1])
+            brake = float(cmd[2])
+        except ValueError:
+            print("Error: Invalid command values. All values must be numbers.")
+            return
+
+        # Validate command values according to new requirements
+        if throttle < 0 or brake < 0:
+            print("Error: Invalid command values. Throttle and brake must be positive values.")
+            return
+
+        if speed_limit <= 0:
+            print("Error: Invalid command values. Speed limit must be positive.")
+            return
+
         self.in_session = True
-        self.cmd = list(map(float, cmd))
-        out = ''
-        if self.cmd[0] > 0:
-            out += 't'
-        else:
-            out += 'b'
-        out = out + str(int(self.cmd[0]))
-        if self.cmd[2] > 0:
-            out += 't'
-        else:
-            out += 'b'
-        out += str(int(self.cmd[2])) + 'r'
+        self.cmd = [throttle, speed_limit, brake]
+
+        # Generate filename with simplified format: throttle_speedlimit_brake
+        out = f"t{int(throttle)}_s{int(speed_limit)}_b{int(brake)}"
         i = 0
-        self.outfile = out + str(i) + '_recorded.csv'
+        self.outfile = os.path.join(self.output_dir, out + f"_run{i}" + '_recorded.csv')
         while os.path.exists(self.outfile):
             i += 1
-            self.outfile = out + str(i) + '_recorded.csv'
+            self.outfile = os.path.join(self.output_dir, out + f"_run{i}" + '_recorded.csv')
         self.file = open(self.outfile, 'w')
         self.file.write(
             "time,io,ctlmode,ctlbrake,ctlthrottle,ctlgear_location," +
@@ -158,22 +174,19 @@ class DataCollector(object):
         self.controlcmd.header.sequence_num = self.sequence_num
         self.sequence_num += 1
 
+        # Simplified logic with strict requirements:
+        # - throttle and brake are always positive values
+        # - always follow accelerate then decelerate pattern
         if self.case == 'a':
-            if self.cmd[0] > 0:
-                self.controlcmd.throttle = self.cmd[0]
-                self.controlcmd.brake = 0
-            else:
-                self.controlcmd.throttle = 0
-                self.controlcmd.brake = -self.cmd[0]
+            # Acceleration phase: use throttle, no brake
+            self.controlcmd.throttle = self.cmd[0]
+            self.controlcmd.brake = 0
             if self.vehicle_speed >= self.cmd[1]:
                 self.case = 'd'
         elif self.case == 'd':
-            if self.cmd[2] > 0:
-                self.controlcmd.throttle = self.cmd[0]
-                self.controlcmd.brake = 0
-            else:
-                self.controlcmd.throttle = 0
-                self.controlcmd.brake = -self.cmd[2]
+            # Deceleration phase: use brake, no throttle
+            self.controlcmd.throttle = 0
+            self.controlcmd.brake = self.cmd[2]
             if self.vehicle_speed == 0:
                 self.in_session = False
 
@@ -203,9 +216,21 @@ def main():
     """
     Main function
     """
+    parser = argparse.ArgumentParser(description='Data Collector for Vehicle Dynamics Calibration')
+    parser.add_argument('-o', '--output-dir', default='.',
+                        help='Output directory for recorded data files (default: current directory)')
+    parser.add_argument('-f', '--commands-file',
+                        help='File containing commands to execute in batch mode')
+
+    args = parser.parse_args()
+
+    # Create output directory if it doesn't exist
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
     node = cyber.Node("data_collector")
 
-    data_collector = DataCollector(node)
+    data_collector = DataCollector(node, args.output_dir)
     plotter = Plotter()
     node.create_reader('/apollo/localization/pose',
                        localization_pb2.LocalizationEstimate,
@@ -213,12 +238,40 @@ def main():
     node.create_reader('/apollo/canbus/chassis', chassis_pb2.Chassis,
                        data_collector.callback_canbus)
 
+    # Batch mode: execute commands from file
+    if args.commands_file:
+        if os.path.exists(args.commands_file):
+            with open(args.commands_file, 'r') as f:
+                commands = f.readlines()
+
+            for line_num, line in enumerate(commands, 1):
+                line = line.strip()
+                if not line or line.startswith('#'):  # Skip empty lines and comments
+                    continue
+
+                cmd = line.split()
+                if len(cmd) == 3:
+                    print(f"Executing command from line {line_num}: {line}")
+                    # The run method will handle validation according to new requirements
+                    data_collector.run(cmd)
+                else:
+                    print(f"Warning: Invalid command on line {line_num}: {line}")
+
+            print("Batch execution completed.")
+            return
+        else:
+            print(f"Error: Commands file '{args.commands_file}' not found.")
+            return
+
+    # Interactive mode
     print('Enter q to quit.')
     print('Enter p to plot result from last run.')
     print('Enter x to remove result from last run.')
-    print('Enter x y z, where x is acceleration command, ' +
-          'y is speed limit, z is decceleration command.')
-    print('Positive number for throttle and negative number for brake.')
+    print('Enter x y z, where x is throttle value (positive), ' +
+          'y is speed limit (positive), z is brake value (positive).')
+    print('All values must be positive numbers. The system will automatically ' +
+          'follow accelerate then decelerate pattern.')
+    print(f'Output directory: {args.output_dir}')
 
     while True:
         cmd = input("Enter commands: ").split()
@@ -240,7 +293,7 @@ def main():
                 if os.path.exists(data_collector.outfile):
                     os.remove(data_collector.outfile)
                 else:
-                    print('File does not exist: %s' % date_collector.outfile)
+                    print('File does not exist: %s' % data_collector.outfile)
         elif len(cmd) == 3:
             data_collector.run(cmd)
 
