@@ -16,7 +16,9 @@
 # limitations under the License.
 ###############################################################################
 
+import argparse
 import sys
+import os
 
 import numpy as np
 
@@ -105,16 +107,94 @@ def get_calibration_table_pb(speed_table):
     return calibration_table_pb
 
 
-if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print("Usage: %s old_control_conf.pb.txt result.csv" % sys.argv[0])
-        sys.exit(0)
+def main():
+    parser = argparse.ArgumentParser(
+        description="Convert processed calibration data to Protocol Buffer format.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s -i old_control_conf.pb.txt -d result.csv -o control_conf.pb.txt
+  %(prog)s --input-config old_control_conf.pb.txt --data-file result.csv --output control_conf.pb.txt
+  %(prog)s -i old_control_conf.pb.txt -d result.csv --output-table calibration_table.pb.txt
+  %(prog)s -i old_control_conf.pb.txt -d result.csv -o control_conf.pb.txt --output-table calibration_table.pb.txt
+        """
+    )
 
-    ctl_conf_pb = get_pb_from_text_file(sys.argv[1], ControlConf())
-    speed_table_dict = load_calibration_raw_data(sys.argv[2])
+    parser.add_argument(
+        "-i", "--input-config",
+        help="Input control configuration file (old control conf pb text file)"
+    )
+
+    parser.add_argument(
+        "-d", "--data-file",
+        required=True,
+        help="Input calibration data file (result.csv)"
+    )
+
+    parser.add_argument(
+        "-o", "--output",
+        default="control_conf.pb.txt",
+        help="Output control configuration file (default: control_conf.pb.txt)"
+    )
+
+    parser.add_argument(
+        "--output-table",
+        help="Output calibration table to a separate file"
+    )
+
+    # For backward compatibility with old usage
+    if len(sys.argv) == 3 and not any(arg.startswith('-') for arg in sys.argv[1:]):
+        # If exactly two arguments without dashes, assume it's the old usage
+        input_config = sys.argv[1]
+        data_file = sys.argv[2]
+        output_file = "control_conf.pb.txt"
+        output_table_file = None
+    else:
+        args = parser.parse_args()
+        data_file = args.data_file
+        input_config = args.input_config
+        output_file = args.output
+        output_table_file = args.output_table
+
+    # Check if input files exist
+    if input_config and not os.path.exists(input_config):
+        print(f"Error: Input control configuration file '{input_config}' does not exist.")
+        sys.exit(1)
+
+    if not os.path.exists(data_file):
+        print(f"Error: Input data file '{data_file}' does not exist.")
+        sys.exit(1)
+
+    # Process the data
+    print(f"Loading calibration data from '{data_file}'...")
+    speed_table_dict = load_calibration_raw_data(data_file)
+
+    print("Generating calibration table...")
     calibration_table_pb = get_calibration_table_pb(speed_table_dict)
-    ctl_conf_pb.lon_controller_conf.calibration_table.CopyFrom(
-        calibration_table_pb)
 
-    with open('control_conf.pb.txt', 'w') as f:
-        f.write(str(ctl_conf_pb))
+    # Output calibration table if requested
+    if output_table_file:
+        print(f"Writing calibration table to '{output_table_file}'...")
+        with open(output_table_file, 'w') as f:
+            f.write(str(calibration_table_pb))
+        print(f"Success! Calibration table saved to '{output_table_file}'")
+
+    # Output control configuration if requested
+    if input_config and output_file:
+        print(f"Loading control configuration from '{input_config}'...")
+        ctl_conf_pb = get_pb_from_text_file(input_config, ControlConf())
+
+        print(f"Updating control configuration with new calibration table...")
+        ctl_conf_pb.lon_controller_conf.calibration_table.CopyFrom(calibration_table_pb)
+
+        print(f"Writing result to '{output_file}'...")
+        with open(output_file, 'w') as f:
+            f.write(str(ctl_conf_pb))
+
+        print(f"Success! Control configuration saved to '{output_file}'")
+    elif not input_config and output_file:
+        print("Warning: --input-config is required to generate control configuration file.")
+
+
+if __name__ == '__main__':
+    main()
