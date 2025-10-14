@@ -41,15 +41,17 @@ class ControlState:
     throttle: float = 0.0
     brake: float = 0.0
     gear: int = chassis_pb2.Chassis.GEAR_DRIVE
+    motion_mode: int = chassis_pb2.Chassis.MOTION_ACKERMANN
 
 
 class AdvancedDataCollector:
     """Ensures data quality and automation by executing calibration plans"""
 
-    def __init__(self, node):
+    def __init__(self, node, output_dir="./calibration_data_logs"):
         """Initialization"""
         self.node = node
         self.control_pub = node.create_writer('/apollo/control', control_cmd_pb2.ControlCommand)
+        self.output_dir = output_dir
 
         # State management variables
         self.vehicle_state = VehicleState()
@@ -74,6 +76,8 @@ class AdvancedDataCollector:
         if not self._load_plan(plan_path):
             return
         self._setup_subscriptions()
+        # enter to auto driving mode and stop the vehicle
+        self._send_control_command(safe_stop=True)
         if not self.check_vehicle_ready():
             return
         self.run_plan()
@@ -170,7 +174,8 @@ class AdvancedDataCollector:
     def _prepare_output_file(self, case_name: str) -> bool:
         """Create a unique, descriptive output filename"""
         try:
-            output_dir = Path("./calibration_data_logs")
+            # Use the output directory from instance variable or default to "./calibration_data_logs"
+            output_dir = Path(getattr(self, 'output_dir', "./calibration_data_logs"))
             output_dir.mkdir(exist_ok=True)
             i = 0
             while True:
@@ -272,6 +277,7 @@ class AdvancedDataCollector:
         cmd.throttle = self.last_sent_control.throttle
         cmd.brake = self.last_sent_control.brake
         cmd.gear_location = self.last_sent_control.gear
+        cmd.motion_mode = self.last_sent_control.motion_mode
 
         self.control_pub.write(cmd)
         self.sequence_num += 1
@@ -319,12 +325,13 @@ class AdvancedDataCollector:
 def main():
     """Main function, runs the data collection process"""
     parser = argparse.ArgumentParser(description="Production-Ready, Plan-Driven Data Collector for Apollo.")
-    parser.add_argument("-p", "--plan", type=str, default="calibration_plan.yaml", required=True, help="Path to the YAML calibration plan file.")
+    parser.add_argument("-p", "--plan", type=str, default="calibration_plan.yaml", help="Path to the YAML calibration plan file (default: calibration_plan.yaml)")
+    parser.add_argument("-o", "--output-dir", type=str, default="./calibration_data_logs", help="Output directory for collected data files (default: ./calibration_data_logs)")
     args = parser.parse_args()
 
     cyber.init()
     node = cyber.Node("advanced_calibration_collector")
-    collector = AdvancedDataCollector(node)
+    collector = AdvancedDataCollector(node, output_dir=args.output_dir)
 
     # --- Robust shutdown handler ---
     def shutdown_handler(signum, frame):
