@@ -12,6 +12,14 @@ from scipy.interpolate import griddata
 from scipy.signal import butter, filtfilt, correlate, correlation_lags
 from sklearn.neighbors import LocalOutlierFactor
 
+# Try to import protobuf modules for calibration table output
+try:
+    from modules.control.proto import calibration_table_pb2
+    PROTOBUF_AVAILABLE = True
+except ImportError:
+    PROTOBUF_AVAILABLE = False
+    print("INFO: Protobuf modules not available. Calibration table output will use native format.")
+
 # --- Configuration Block ---
 class CalibrationConfig:
     """A single, centralized place for all tunable parameters."""
@@ -36,13 +44,13 @@ class CalibrationProcessor:
         self.unified_df = None
         self.unified_table = None
 
-    def run(self, input_dir: str, output_dir: str):
+    def run(self, input_dir: str, output_dir: str, output_calibration_table: bool = False):
         """Execute the full processing pipeline."""
         print("--- Starting Calibration Data Processing & Visualization ---")
         self._load_and_create_unified_df(input_dir)
         self._process_unified_data()
         self._build_unified_monotonic_table()
-        self._visualize_and_save(output_dir)
+        self._visualize_and_save(output_dir, output_calibration_table)
         print("\n--- Processing Finished Successfully ---")
 
     def _load_and_create_unified_df(self, input_dir: str):
@@ -69,7 +77,8 @@ class CalibrationProcessor:
 
         # --- Create the Unified Command Column ---
         # Throttle is positive, brake is negative
-        master_df['command'] = np.where(master_df['ctl_throttle'] > 0, master_df['ctl_throttle'], -master_df['ctl_brake'])
+        # Handle cases where both throttle and brake might be applied
+        master_df['command'] = master_df['ctl_throttle'] - master_df['ctl_brake']
         self.unified_df = master_df.drop(columns=['ctl_throttle', 'ctl_brake'])
         print(f"OK: Loaded {len(csv_files)} files. Created unified dataset with {len(self.unified_df)} points.")
 
@@ -77,12 +86,13 @@ class CalibrationProcessor:
         """Applies filtering, signal sync, and outlier removal to the unified dataset."""
         df = self.unified_df
 
-        # 1. Denoise acceleration signal
+        # 1. Denoise acceleration signal using low-pass filter
         nyquist = 0.5 * self.config.SAMPLING_RATE_HZ
         b, a = butter(self.config.ACCEL_FILTER_ORDER, self.config.ACCEL_FILTER_CUTOFF_HZ / nyquist, btype='low')
         df['accel_filtered'] = filtfilt(b, a, df['imu_accel_y'])
 
         # 2. Synchronize signals (must be done separately for throttle and brake)
+        # This accounts for the delay between command input and acceleration response
         df_throttle = df[df['command'] > 0].copy()
         df_brake = df[df['command'] < 0].copy()
 
@@ -95,6 +105,7 @@ class CalibrationProcessor:
         print("OK: Latency correction applied to throttle and brake segments.")
 
         # 3. Remove statistical outliers from the combined, latency-corrected data
+        # Using Local Outlier Factor (LOF) algorithm for outlier detection
         features = ['speed_mps', 'command', 'accel_aligned']
         df_clean = df.dropna(subset=features).copy()
         lof = LocalOutlierFactor(n_neighbors=self.config.LOF_NEIGHBORS, contamination=self.config.LOF_CONTAMINATION)
@@ -105,8 +116,12 @@ class CalibrationProcessor:
 
     def _synchronize_segment(self, df: pd.DataFrame, command_type: str) -> pd.DataFrame:
         """Helper to synchronize a specific segment (throttle or brake)."""
-        command_signal = df['command'].abs().values
+        command_signal = df['command'].values
         accel_signal = df['accel_filtered'].values
+
+        # For brake commands (negative values), we want to use absolute values for correlation
+        if command_type == 'negative':
+            command_signal = np.abs(command_signal)
 
         command_signal = (command_signal - np.mean(command_signal)) / np.std(command_signal)
         accel_signal = (accel_signal - np.mean(accel_signal)) / np.std(accel_signal)
@@ -136,19 +151,20 @@ class CalibrationProcessor:
 
         # --- Enforce Monotonicity in Two Directions from Zero ---
         print("INFO: Enforcing monotonicity constraint on the unified table...")
+        # Find the index closest to zero command
         zero_cmd_idx = np.argmin(np.abs(command_grid))
 
-        # For throttle (command > 0)
+        # For throttle (command > 0) - ensure acceleration increases or stays the same
         for i in range(zero_cmd_idx + 1, len(command_grid)):
             grid_z[i, :] = np.maximum(grid_z[i, :], grid_z[i-1, :])
 
-        # For brake (command < 0)
+        # For brake (command < 0) - ensure acceleration decreases or stays the same
         for i in range(zero_cmd_idx - 1, -1, -1):
             grid_z[i, :] = np.minimum(grid_z[i, :], grid_z[i+1, :])
 
         self.unified_table = (speed_grid, command_grid, grid_z)
 
-    def _visualize_and_save(self, output_dir: str):
+    def _visualize_and_save(self, output_dir: str, output_calibration_table: bool = False):
         """Visualizes dynamics using 3D/2D plots and saves the final unified table."""
         Path(output_dir).mkdir(exist_ok=True)
 
@@ -176,6 +192,10 @@ class CalibrationProcessor:
                 for j, command in enumerate(command_axis):
                     f.write(f"{speed:.2f},{command:.2f},{accel_values[j, i]:.4f}\n")
         print(f"OK: Unified calibration table saved to '{filepath}'")
+
+        # --- Generate Calibration Table ---
+        if output_calibration_table:
+            self._generate_calibration_table(output_dir)
 
     def _create_dynamics_plot(self, df_data, title, cmd_label, cmap):
         """Creates a combined 3D surface and 2D contour plot."""
@@ -216,17 +236,77 @@ class CalibrationProcessor:
 
         plt.tight_layout(rect=[0, 0, 1, 0.95]); plt.show()
 
+    def _generate_calibration_table(self, output_dir: str):
+        """Generate calibration table in protobuf or native format."""
+        print("INFO: Generating calibration table...")
+
+        # Get the unified table data
+        speed_axis, command_axis, accel_values = self.unified_table
+
+        # Populate the calibration table
+        # We need to convert the 2D grid data to individual calibration points
+        calibration_entries = []
+        for i, speed in enumerate(speed_axis):
+            for j, command in enumerate(command_axis):
+                acceleration = accel_values[j, i]
+
+                # Skip zero acceleration values to reduce file size and match typical format
+                if abs(acceleration) < 0.001:
+                    continue
+
+                # Store calibration entry in the correct format: speed, acceleration, command
+                calibration_entries.append({
+                    'speed': float(speed),
+                    'acceleration': float(acceleration),
+                    'command': float(command)
+                })
+
+        # Save the calibration table to a file with fixed name
+        filepath = Path(output_dir) / "calibration_table.pb.txt"
+
+        # If protobuf is available, use it; otherwise, use native format
+        if PROTOBUF_AVAILABLE:
+            # Create the calibration table protobuf message
+            calibration_table_pb = calibration_table_pb2.ControlCalibrationTable()
+
+            # Populate protobuf message
+            count = 0
+            for entry in calibration_entries:
+                calibration_entry = calibration_table_pb.calibration.add()
+                calibration_entry.speed = entry['speed']
+                calibration_entry.acceleration = entry['acceleration']
+                calibration_entry.command = entry['command']
+                count += 1
+
+            # Save using protobuf
+            with open(filepath, 'w') as f:
+                f.write(str(calibration_table_pb))
+
+            print(f"OK: Calibration table (protobuf format) saved to '{filepath}' with {count} entries.")
+        else:
+            # Use native format matching protobuf text format
+            with open(filepath, 'w') as f:
+                for entry in calibration_entries:
+                    f.write("calibration {\n")
+                    f.write(f"  speed: {entry['speed']}\n")
+                    f.write(f"  acceleration: {entry['acceleration']}\n")
+                    f.write(f"  command: {entry['command']}\n")
+                    f.write("}\n")
+
+            print(f"OK: Calibration table (native format) saved to '{filepath}' with {len(calibration_entries)} entries.")
+
 def main():
     parser = argparse.ArgumentParser(description="Process and visualize raw vehicle data to generate a unified calibration table.")
-    parser.add_argument("-i", "--input_dir", type=str, required=True, help="Directory containing the raw CSV data logs.")
+    parser.add_argument("-i", "--input_dir", type=str, default="./calibration_data_logs", help="Directory containing the raw CSV data logs.")
     parser.add_argument("-o", "--output_dir", type=str, default="./calibration_results", help="Directory to save the final plots and table.")
+    parser.add_argument("--output-calibration-table", action="store_true", help="Also output calibration table in protobuf or native format.")
     args = parser.parse_args()
 
     config = CalibrationConfig()
     processor = CalibrationProcessor(config)
 
     try:
-        processor.run(args.input_dir, args.output_dir)
+        processor.run(args.input_dir, args.output_dir, args.output_calibration_table)
     except Exception as e:
         print(f"\nFATAL ERROR: An unexpected error occurred during processing: {e}", file=sys.stderr)
         sys.exit(1)
