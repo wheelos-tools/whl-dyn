@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Production-Ready, Plan-Driven Data Collector for Longitudinal Calibration
 
@@ -23,6 +22,7 @@ from modules.common_msgs.chassis_msgs import chassis_pb2
 from modules.common_msgs.control_msgs import control_cmd_pb2
 from modules.common_msgs.localization_msgs import localization_pb2
 
+
 # --- Use dataclasses for clear state management ---
 @dataclass
 class VehicleState:
@@ -35,13 +35,15 @@ class VehicleState:
     throttle_pct: float = 0.0
     brake_pct: float = 0.0
 
+
 @dataclass
 class ControlState:
     """Stores the last sent control command"""
     throttle: float = 0.0
     brake: float = 0.0
     gear: int = chassis_pb2.Chassis.GEAR_DRIVE
-    motion_mode: int = chassis_pb2.Chassis.MOTION_ACKERMANN
+    # TODO(leafyleong): re-enable after motion mode supported
+    # motion_mode: int = chassis_pb2.Chassis.MOTION_ACKERMANN
 
 
 class AdvancedDataCollector:
@@ -50,7 +52,8 @@ class AdvancedDataCollector:
     def __init__(self, node, output_dir="./calibration_data_logs"):
         """Initialization"""
         self.node = node
-        self.control_pub = node.create_writer('/apollo/control', control_cmd_pb2.ControlCommand)
+        self.control_pub = node.create_writer('/apollo/control',
+                                              control_cmd_pb2.ControlCommand)
         self.output_dir = output_dir
 
         # State management variables
@@ -96,10 +99,10 @@ class AdvancedDataCollector:
     def _setup_subscriptions(self):
         """Initialize all CyberRT subscribers"""
         self.node.create_reader('/apollo/localization/pose',
-                               localization_pb2.LocalizationEstimate,
-                               self._callback_localization)
+                                localization_pb2.LocalizationEstimate,
+                                self._callback_localization)
         self.node.create_reader('/apollo/canbus/chassis', chassis_pb2.Chassis,
-                               self._callback_chassis)
+                                self._callback_chassis)
 
     def check_vehicle_ready(self, timeout_sec=10) -> bool:
         """Ensure the vehicle is in a safe, ready state for testing"""
@@ -109,10 +112,15 @@ class AdvancedDataCollector:
             if not (self.localization_received and self.chassis_received):
                 print("  - Waiting for localization and chassis messages...")
             elif self.vehicle_state.driving_mode != chassis_pb2.Chassis.COMPLETE_AUTO_DRIVE:
-                mode_name = chassis_pb2.Chassis.DrivingMode.Name(self.vehicle_state.driving_mode)
-                print(f"  - Warning: Vehicle not in auto drive mode (Current: {mode_name}).")
+                mode_name = chassis_pb2.Chassis.DrivingMode.Name(
+                    self.vehicle_state.driving_mode)
+                print(
+                    f"  - Warning: Vehicle not in auto drive mode (Current: {mode_name})."
+                )
             elif abs(self.vehicle_state.speed_mps) > 0.1:
-                print(f'  - Warning: Vehicle not stationary (Current speed: {self.vehicle_state.speed_mps:.2f} m/s).')
+                print(
+                    f'  - Warning: Vehicle not stationary (Current speed: {self.vehicle_state.speed_mps:.2f} m/s).'
+                )
             else:
                 print("OK: Vehicle is ready.")
                 return True
@@ -126,10 +134,15 @@ class AdvancedDataCollector:
             if self.abort_signal_received:
                 break
             print(f"\n{'='*80}")
-            print(f"INFO: Preparing case {i+1}/{len(self.plan)}: {case_config['case_name']}")
-            print(f"      Description: {case_config.get('description', 'N/A')}")
+            print(
+                f"INFO: Preparing case {i+1}/{len(self.plan)}: {case_config['case_name']}"
+            )
+            print(
+                f"      Description: {case_config.get('description', 'N/A')}")
 
-            user_input = input("      Press Enter to start, 's' to skip, 'q' to quit: ").lower()
+            user_input = input(
+                "      Press Enter to start, 's' to skip, 'q' to quit: "
+            ).lower()
             if user_input == 's':
                 continue
             if user_input == 'q':
@@ -157,10 +170,12 @@ class AdvancedDataCollector:
             self.is_collecting = True
             self.step_start_time = cyber_time.Time.now().to_sec()
 
-            while self.is_collecting and not self.abort_signal_received and cyber.ok():
+            while self.is_collecting and not self.abort_signal_received and cyber.ok(
+            ):
                 loop_start_time = cyber_time.Time.now().to_sec()
                 self._state_machine_tick()
-                sleep_time = 0.01 - (cyber_time.Time.now().to_sec() - loop_start_time)
+                sleep_time = 0.01 - (cyber_time.Time.now().to_sec() -
+                                     loop_start_time)
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
@@ -175,7 +190,8 @@ class AdvancedDataCollector:
         """Create a unique, descriptive output filename"""
         try:
             # Use the output directory from instance variable or default to "./calibration_data_logs"
-            output_dir = Path(getattr(self, 'output_dir', "./calibration_data_logs"))
+            output_dir = Path(
+                getattr(self, 'output_dir', "./calibration_data_logs"))
             output_dir.mkdir(exist_ok=True)
             i = 0
             while True:
@@ -193,8 +209,7 @@ class AdvancedDataCollector:
         """Write CSV file header"""
         self.output_file.write(
             "time,speed_mps,imu_accel_y,driving_mode,actual_gear,"
-            "throttle_pct,brake_pct,ctl_throttle,ctl_brake\n"
-        )
+            "throttle_pct,brake_pct,ctl_throttle,ctl_brake\n")
 
     def _print_live_status(self):
         """Print and refresh live status line in terminal"""
@@ -209,8 +224,7 @@ class AdvancedDataCollector:
             f"Speed: {self.vehicle_state.speed_mps:5.2f} m/s | "
             f"Trigger: {trigger['type'].replace('_', ' ')} {trigger['value']:.1f} | "
             f"Command: Throttle={cmd.get('throttle', 0):.0f}% Brake={cmd.get('brake', 0):.0f}% | "
-            f"Elapsed: {elapsed:4.1f}s / {step['timeout_sec']:.0f}s"
-        )
+            f"Elapsed: {elapsed:4.1f}s / {step['timeout_sec']:.0f}s")
         sys.stdout.write(status_str)
         sys.stdout.flush()
 
@@ -222,7 +236,7 @@ class AdvancedDataCollector:
 
         # Check if step timed out
         if time.time() - self.step_start_time > current_step['timeout_sec']:
-            sys.stdout.write("\r" + " " * 80 + "\r") # Clear status line
+            sys.stdout.write("\r" + " " * 80 + "\r")  # Clear status line
             print(f"ERROR: Step timed out. Aborting current case.")
             self.is_collecting = False
             self._send_control_command(safe_stop=True)
@@ -238,7 +252,7 @@ class AdvancedDataCollector:
             trigger_met = True
 
         if trigger_met:
-            sys.stdout.write("\r" + " " * 80 + "\r") # Clear status line
+            sys.stdout.write("\r" + " " * 80 + "\r")  # Clear status line
             print(f"INFO: Trigger met at speed {speed:.2f} m/s.")
             if self.active_step_idx + 1 < len(self.active_case['steps']):
                 self.active_step_idx += 1
@@ -252,7 +266,11 @@ class AdvancedDataCollector:
         # Publish current step command
         self._send_control_command(command_dict=current_step['command'])
 
-    def _send_control_command(self, command_dict=None, reset=False, default=False, safe_stop=False):
+    def _send_control_command(self,
+                              command_dict=None,
+                              reset=False,
+                              default=False,
+                              safe_stop=False):
         """Construct and publish ControlCommand message"""
         cmd = control_cmd_pb2.ControlCommand()
         cmd.header.module_name = "advanced_collector"
@@ -271,26 +289,28 @@ class AdvancedDataCollector:
             elif command_dict:
                 self.last_sent_control = ControlState(
                     throttle=float(command_dict.get('throttle', 0.0)),
-                    brake=float(command_dict.get('brake', 0.0))
-                )
+                    brake=float(command_dict.get('brake', 0.0)))
 
         cmd.throttle = self.last_sent_control.throttle
         cmd.brake = self.last_sent_control.brake
         cmd.gear_location = self.last_sent_control.gear
-        cmd.motion_mode = self.last_sent_control.motion_mode
+        # TODO(leafyleong): re-enable after motion mode supported
+        # cmd.motion_mode = self.last_sent_control.motion_mode
 
         self.control_pub.write(cmd)
         self.sequence_num += 1
 
     def emergency_stop(self):
         """Called by signal handler to safely stop collection"""
-        print("\nINFO: Emergency stop signal received. Sending safe command...")
+        print(
+            "\nINFO: Emergency stop signal received. Sending safe command...")
         self.abort_signal_received = True
         self.is_collecting = False
         self._send_control_command(safe_stop=True)
         print("INFO: Safe stop command sent. Collected data will be saved.")
 
-    def _callback_localization(self, data: localization_pb2.LocalizationEstimate):
+    def _callback_localization(self,
+                               data: localization_pb2.LocalizationEstimate):
         """Handle localization messages"""
         self.vehicle_state.imu_accel_y = data.pose.linear_acceleration_vrf.y
         self.localization_received = True
@@ -318,15 +338,29 @@ class AdvancedDataCollector:
         self.output_file.write(
             f"{vs.timestamp:.4f},{vs.speed_mps:.4f},{vs.imu_accel_y:.4f},"
             f"{vs.driving_mode},{vs.actual_gear},{vs.throttle_pct:.2f},"
-            f"{vs.brake_pct:.2f},{cs.throttle:.2f},{cs.brake:.2f}\n"
-        )
+            f"{vs.brake_pct:.2f},{cs.throttle:.2f},{cs.brake:.2f}\n")
 
 
 def main():
     """Main function, runs the data collection process"""
-    parser = argparse.ArgumentParser(description="Production-Ready, Plan-Driven Data Collector for Apollo.")
-    parser.add_argument("-p", "--plan", type=str, default="calibration_plan.yaml", help="Path to the YAML calibration plan file (default: calibration_plan.yaml)")
-    parser.add_argument("-o", "--output-dir", type=str, default="./calibration_data_logs", help="Output directory for collected data files (default: ./calibration_data_logs)")
+    parser = argparse.ArgumentParser(
+        description="Production-Ready, Plan-Driven Data Collector for Apollo.")
+    parser.add_argument(
+        "-p",
+        "--plan",
+        type=str,
+        default="calibration_plan.yaml",
+        help=
+        "Path to the YAML calibration plan file (default: calibration_plan.yaml)"
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        type=str,
+        default="./calibration_data_logs",
+        help=
+        "Output directory for collected data files (default: ./calibration_data_logs)"
+    )
     args = parser.parse_args()
 
     cyber.init()
@@ -336,9 +370,10 @@ def main():
     # --- Robust shutdown handler ---
     def shutdown_handler(signum, frame):
         collector.emergency_stop()
-        time.sleep(1) # Wait for stop command to be sent
+        time.sleep(1)  # Wait for stop command to be sent
         cyber.shutdown()
         sys.exit(0)
+
     signal.signal(signal.SIGINT, shutdown_handler)
 
     collector.setup_and_run(args.plan)
