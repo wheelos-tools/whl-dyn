@@ -129,13 +129,14 @@ class CalibrationProcessor:
             # TODO(leafyleong): Re-enable automatic synchronization
             # df_throttle = self._synchronize_segment(df_throttle, 'positive')
             df_throttle['accel_aligned'] = df_throttle['accel_filtered'].shift(
-                0 -
-                int(config.THROTTLE_LATENCY / 1000 * config.SAMPLING_RATE_HZ))
+                0 - int(self.config.THROTTLE_LATENCY / 1000 *
+                        self.config.SAMPLING_RATE_HZ))
         if not df_brake.empty:
             # TODO(leafyleong): Re-enable automatic synchronization
             # df_brake = self._synchronize_segment(df_brake, 'negative')
             df_brake['accel_aligned'] = df_brake['accel_filtered'].shift(
-                0 - int(config.BRAKE_LATENCY / 1000 * config.SAMPLING_RATE_HZ))
+                0 - int(self.config.BRAKE_LATENCY / 1000 *
+                        self.config.SAMPLING_RATE_HZ))
 
         df = pd.concat([df_throttle, df_brake],
                        ignore_index=True).sort_values(by='time')
