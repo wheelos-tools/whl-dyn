@@ -62,7 +62,7 @@ def load_calibration_data(file_path):
     return pd.DataFrame(records)
 
 
-def create_dynamics_plot(df_data, title, cmd_label, cmap_name='viridis'):
+def create_dynamics_plot(df_data, title, cmd_label, cmap_name='viridis', elev=20, azim=-75):
     """
     Create a combined chart with a 3D surface plot and a 2D contour plot.
 
@@ -106,7 +106,7 @@ def create_dynamics_plot(df_data, title, cmd_label, cmap_name='viridis'):
     ax1.set_ylabel(cmd_label, fontsize=12, labelpad=10)
     ax1.set_zlabel('Acceleration (m/s²)', fontsize=12, labelpad=10)
     ax1.set_title('3D Surface Plot', fontsize=16)
-    ax1.view_init(elev=20, azim=-135)  # Adjust view angle for better visualization
+    ax1.view_init(elev=elev, azim=azim)  # Adjust view angle for better visualization
     fig.colorbar(surf, ax=ax1, shrink=0.5, aspect=10, pad=0.1)
     ax1.legend()
 
@@ -174,7 +174,7 @@ Examples:
     # Throttle: light blue -> yellow -> red (representing acceleration)
     throttle_cmap = LinearSegmentedColormap.from_list("throttle_cmap", ["lightblue", "yellow", "red"])
     # Brake: light green -> cyan -> blue (representing deceleration)
-    brake_cmap = LinearSegmentedColormap.from_list("brake_cmap", ["lightgreen", "cyan", "blue"])
+    brake_cmap = LinearSegmentedColormap.from_list("brake_cmap", ["blue", "cyan", "lightgreen"])
 
     # Generate plots for both throttle and brake dynamics
     print("Generating throttle dynamics plot...")
@@ -187,7 +187,8 @@ Examples:
     create_dynamics_plot(df_brake,
                          'Brake Dynamics: Acceleration(Speed, Command)',
                          'Brake Command (%)',
-                         cmap_name=brake_cmap)
+                         cmap_name=brake_cmap,
+                         elev=30, azim=35)
 
     print("Plots generated successfully.")
 

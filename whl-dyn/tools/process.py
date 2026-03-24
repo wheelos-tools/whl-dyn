@@ -39,8 +39,8 @@ class CalibrationConfig:
     SPEED_GRID_RESOLUTION = 0.2  # m/s
     COMMAND_GRID_RESOLUTION = 5.0  # % command (-100 to +100)
 
-    THROTTLE_LATENCY = 100  # throttle latency in ms
-    BRAKE_LATENCY = 80  # brake latency in ms
+    THROTTLE_LATENCY = 60  # throttle latency in ms
+    BRAKE_LATENCY = 60  # brake latency in ms
 
 
 class CalibrationProcessor:
