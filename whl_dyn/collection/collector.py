@@ -49,12 +49,13 @@ class ControlState:
 class AdvancedDataCollector:
     """Ensures data quality and automation by executing calibration plans"""
 
-    def __init__(self, node, output_dir="./calibration_data_logs"):
+    def __init__(self, node, output_dir="./calibration_data_logs", auto_start=False):
         """Initialization"""
         self.node = node
         self.control_pub = node.create_writer('/apollo/control',
                                               control_cmd_pb2.ControlCommand)
         self.output_dir = output_dir
+        self.auto_start = auto_start
 
         # State management variables
         self.vehicle_state = VehicleState()
@@ -140,13 +141,16 @@ class AdvancedDataCollector:
             print(
                 f"      Description: {case_config.get('description', 'N/A')}")
 
-            user_input = input(
-                "      Press Enter to start, 's' to skip, 'q' to quit: "
-            ).lower()
-            if user_input == 's':
-                continue
-            if user_input == 'q':
-                break
+            if not self.auto_start:
+                user_input = input(
+                    "      Press Enter to start, 's' to skip, 'q' to quit: "
+                ).lower()
+                if user_input == 's':
+                    continue
+                if user_input == 'q':
+                    break
+            else:
+                print("INFO: Auto-start enabled, executing case immediately.")
 
             self._execute_case(case_config)
 
@@ -361,11 +365,16 @@ def main():
         help=
         "Output directory for collected data files (default: ./calibration_data_logs)"
     )
+    parser.add_argument(
+        "--auto-start",
+        action="store_true",
+        help="Start each case automatically without interactive prompt."
+    )
     args = parser.parse_args()
 
     cyber.init()
     node = cyber.Node("advanced_calibration_collector")
-    collector = AdvancedDataCollector(node, output_dir=args.output_dir)
+    collector = AdvancedDataCollector(node, output_dir=args.output_dir, auto_start=args.auto_start)
 
     # --- Robust shutdown handler ---
     def shutdown_handler(signum, frame):
