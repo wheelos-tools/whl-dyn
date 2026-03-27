@@ -4,6 +4,7 @@ import sys
 import time
 from argparse import Namespace
 from pathlib import Path
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -116,7 +117,7 @@ def find_case_logs(output_dir: Path, case_name: str):
     return sorted(output_dir.glob(f"{case_name}_*.csv"), key=lambda path: path.stat().st_mtime)
 
 
-def check_csv_sanity(csv_path: Path | None) -> dict:
+def check_csv_sanity(csv_path: Optional[Path]) -> dict:
     if csv_path is None or not csv_path.exists():
         return {"ok": False, "reason": "no_log", "rows": 0, "speed_span": 0.0, "command_span": 0.0}
 
@@ -205,7 +206,7 @@ def stop_collection():
 
 
 
-def drain_logs(proc, log_lines: list[str]):
+def drain_logs(proc, log_lines: List[str]):
     if proc is None or proc.stdout is None:
         return
     while True:
