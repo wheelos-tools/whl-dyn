@@ -1,3 +1,4 @@
+import dataclasses
 import select
 import subprocess
 import sys
@@ -351,7 +352,12 @@ def build_speed_slice_figure(speed_grid, command_grid, grid_z):
     return fig
 
 
-@st.cache_data(show_spinner=False, hash_funcs={CalibrationConfig: lambda _: None})
+def _hash_config(config: CalibrationConfig):
+    """Hash function for CalibrationConfig."""
+    return hash(tuple(sorted(dataclasses.asdict(config).items())))
+
+
+@st.cache_data(show_spinner=False, hash_funcs={CalibrationConfig: _hash_config})
 def load_and_process(config: CalibrationConfig, directory: str):
     core = DataCore(config)
     core.load_data(directory)
