@@ -406,15 +406,15 @@ def render_metrics_grid(metrics_data: list, columns: int = 3):
     <style>
     .metric-container {
         position: relative;
-        padding: 6px 8px;
+        padding: 3px 6px;
         background: #1A1A1A;
-        border-radius: 6px;
+        border-radius: 4px;
         cursor: help;
     }
     .metric-name {
-        font-size: 11px;
+        font-size: 10px;
         color: #999;
-        margin-bottom: 4px;
+        margin-bottom: 2px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -423,6 +423,10 @@ def render_metrics_grid(metrics_data: list, columns: int = 3):
         display: flex;
         justify-content: space-between;
         align-items: center;
+    }
+    .metric-value {
+        font-size: 12px;
+        font-weight: 600;
     }
     .metric-tooltip {
         display: none;
@@ -513,7 +517,7 @@ def render_metrics_grid(metrics_data: list, columns: int = 3):
                         tooltip_html += f'<div class="tooltip-hint">{help_text}</div>'
                     tooltip_html += f'''<div class="vertical-scale"><div class="scale-bar"><div class="scale-marker" style="bottom: {marker_pos}%;"></div></div><div class="scale-labels"><span>优秀</span><span>良好</span><span>一般</span><span>差</span></div></div>'''
 
-                    html_content = f'''<div class="metric-container"><div class="metric-name">{label}</div><div class="metric-value-row"><span style="font-size: 13px; font-weight: 600; color: {rating['color']};">{value}</span><span style="font-size: 8px; padding: 1px 3px; border-radius: 2px; background: {rating['color']}; color: #000;">{rating['label']}</span></div><div class="metric-tooltip">{tooltip_html}</div></div>'''
+                    html_content = f'''<div class="metric-container"><div class="metric-name">{label}</div><div class="metric-value-row"><span class="metric-value" style="color: {rating['color']};">{value}</span><span style="font-size: 7px; padding: 1px 2px; border-radius: 2px; background: {rating['color']}; color: #000;">{rating['label']}</span></div><div class="metric-tooltip">{tooltip_html}</div></div>'''
                     st.markdown(html_content, unsafe_allow_html=True)
 
 
@@ -603,16 +607,130 @@ st.markdown("""
 
 /* 隐藏running info等 */
 .stStatusWidget {display: none !important;}
+
+/* 压缩所有元素的间距 */
+div[data-testid="stVerticalBlock"] {
+    gap: 0.1rem !important;
+}
+
+div[data-testid="column"] {
+    gap: 0.1rem !important;
+}
+
+/* 压缩所有控件的内边距 - 使用更具体的选择器 */
+div[data-testid="stNumberInput"] {
+    padding: 0 !important;
+}
+
+div[data-testid="stNumberInput"] > div {
+    padding: 0 !important;
+}
+
+div[data-testid="stSelectbox"] {
+    padding: 0 !important;
+}
+
+div[data-testid="stSelectbox"] > div {
+    padding: 0 !important;
+}
+
+div[data-testid="stSlider"] {
+    padding: 0.1rem 0 !important;
+}
+
+div[data-testid="stSlider"] > div {
+    padding: 0.1rem 0 !important;
+}
+
+div[data-testid="stCheckbox"] {
+    padding: 0.1rem 0 !important;
+}
+
+div[data-testid="stRadio"] {
+    padding: 0.1rem 0 !important;
+}
+
+[data-testid="stMarkdownContainer"] {
+    margin-top: 0.1rem !important;
+    margin-bottom: 0.1rem !important;
+}
+
+/* 压缩标题 */
+h3 {
+    margin-top: 0.2rem !important;
+    margin-bottom: 0.2rem !important;
+    font-size: 0.9rem !important;
+}
+
+h4 {
+    margin-top: 0.1rem !important;
+    margin-bottom: 0.1rem !important;
+    font-size: 0.85rem !important;
+}
+
+/* 减小标签字体 */
+label {
+    font-size: 0.85rem !important;
+}
+
+/* 压缩元素间距 */
+element-container {
+    gap: 0.1rem !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
 st.title("Chassis Dynamics Calibration Dashboard")
 
 plan_default = str(PROJECT_ROOT / "calibration_plan.yaml")
+
+# 添加流程指示样式 - 在tab之间添加箭头
+st.markdown("""
+<style>
+/* 让tab占满宽度 */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0px;
+    width: 100%;
+    display: flex;
+}
+.stTabs [data-baseweb="tab"] {
+    flex-grow: 1;
+    justify-content: center;
+    position: relative;
+}
+
+/* 在第一个tab后面添加箭头 */
+.stTabs [data-baseweb="tab"]:nth-child(1)::after {
+    content: "→ → →";
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.5rem;
+    color: #00C853;
+    font-weight: bold;
+    z-index: 10;
+}
+
+/* 在第二个tab后面添加箭头 */
+.stTabs [data-baseweb="tab"]:nth-child(2)::after {
+    content: "→ → →";
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.5rem;
+    color: #00C853;
+    font-weight: bold;
+    z-index: 10;
+}
+</style>
+""", unsafe_allow_html=True)
+
 plan_tab, collect_tab, analysis_tab = st.tabs([
-    "1. Plan Generation",
-    "2. Data Collection Workflow",
-    "3. Processing & Analytics",
+    "📋 ① 生成计划",
+    "🚗 ② 数据采集",
+    "📊 ③ 分析",
 ])
 
 with plan_tab:
@@ -762,6 +880,77 @@ with collect_tab:
             st.rerun()
 
 with analysis_tab:
+    # 注入超紧凑样式到整个标签页
+    st.markdown("""
+    <style>
+    /* 强制压缩所有控件高度和间距 */
+    .main [data-testid="stVerticalBlock"] > div {
+        gap: 0 !important;
+    }
+    .main [data-testid="column"] > div {
+        gap: 0 !important;
+    }
+    .main [data-testid="column"] > div > div {
+        gap: 0 !important;
+        padding: 0 !important;
+    }
+    /* 强制减小控件内部高度 */
+    [data-testid="stNumberInput"] > div {
+        padding: 0 !important;
+        min-height: 25px !important;
+    }
+    [data-testid="stSelectbox"] > div {
+        padding: 0 !important;
+        min-height: 25px !important;
+    }
+    [data-testid="stSlider"] > div {
+        padding: 2px 0 !important;
+        min-height: 35px !important;
+    }
+    [data-testid="stCheckbox"] > div {
+        padding: 0 !important;
+        min-height: 25px !important;
+    }
+    /* 强制减小字体 */
+    [data-testid="stNumberInput"] label,
+    [data-testid="stSelectbox"] label,
+    [data-testid="stSlider"] label,
+    [data-testid="stCheckbox"] label {
+        font-size: 0.75rem !important;
+        line-height: 1rem !important;
+        margin-bottom: 0 !important;
+    }
+    /* 减小markdown间距 */
+    [data-testid="stMarkdownContainer"] {
+        margin: 0 !important;
+    }
+    /* 减小标题间距 */
+    h3, h4, h5 {
+        margin: 0.1rem 0 !important;
+        padding: 0 !important;
+    }
+    /* 减小hr分隔线高度和间距 */
+    hr {
+        margin: 0.2rem 0 !important;
+        border: none !important;
+        border-top: 1px solid #444 !important;
+    }
+    /* 减小行间距 */
+    .element-container {
+        margin-bottom: 0 !important;
+    }
+    /* 减小粗体文字间距 */
+    strong {
+        margin: 0.1rem 0 !important;
+    }
+    /* 调整指标标题间距 */
+    .main [data-testid="column"] strong {
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.1rem !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     # === 顶部路径输入 ===
     col_path1, col_path2 = st.columns(2)
     with col_path1:
@@ -776,62 +965,50 @@ with analysis_tab:
     # === 三列布局：参数 | 可视化 | 指标 ===
     param_col, viz_col, metrics_col = st.columns([1, 2.5, 1])
 
-    # === 左列：参数调节（双列紧凑布局） ===
+    # === 左列：参数调节 ===
     with param_col:
         st.markdown("##### ⚙️ 参数")
 
-        # 双列布局减少高度
         p1, p2 = st.columns(2)
         with p1:
-            config.speed_source = st.selectbox("Speed", ["chassis", "localization"], help="速度数据来源: chassis=底盘, localization=定位")
+            config.speed_source = st.selectbox("Speed", ["chassis", "localization"])
         with p2:
-            config.accel_source = st.selectbox("Accel", ["imu", "derivative"], help="加速度来源: imu=IMU传感器, derivative=速度微分")
+            config.accel_source = st.selectbox("Accel", ["imu", "derivative"])
 
         p3, p4 = st.columns(2)
         with p3:
-            config.throttle_latency_ms = st.number_input("Throttle ms", 0, 500, 60, help="油门响应延迟补偿(毫秒)")
+            config.throttle_latency_ms = st.number_input("Throttle ms", 0, 500, 60)
         with p4:
-            config.brake_latency_ms = st.number_input("Brake ms", 0, 500, 60, help="刹车响应延迟补偿(毫秒)")
+            config.brake_latency_ms = st.number_input("Brake ms", 0, 500, 60)
 
         p_stab1, p_stab2 = st.columns(2)
         with p_stab1:
-            config.throttle_stability_window_ms = st.number_input("油门稳定窗口(ms)", 0, 1000, 200, help="命令切换后丢弃的时间窗口(毫秒)")
+            config.throttle_stability_window_ms = st.number_input("油门稳定窗口", 0, 1000, 200)
         with p_stab2:
-            config.brake_stability_window_ms = st.number_input("刹车稳定窗口(ms)", 0, 1000, 300, help="命令切换后丢弃的时间窗口(毫秒)")
+            config.brake_stability_window_ms = st.number_input("刹车稳定窗口", 0, 1000, 300)
 
-        # 速度范围过滤：双滑块分别控制油门和刹车
-        st.markdown("**速度范围过滤**")
-        throttle_min, throttle_max = st.slider(
-            "油门速度范围(m/s)",
-            0.0, 10.0, (0.0, 5.0),
-            help="油门数据的速度过滤范围：低于最小值或高于最大值的数据将被丢弃"
-        )
-        config.min_throttle_speed_mps = throttle_min
-        config.max_throttle_speed_mps = throttle_max
+        # 合并速度范围
+        speed_min, speed_max = st.slider("速度范围(m/s)", 0.0, 10.0, (0.0, 5.0))
+        config.min_throttle_speed_mps = speed_min
+        config.max_throttle_speed_mps = speed_max
+        config.min_brake_speed_mps = speed_min
+        config.max_brake_speed_mps = speed_max
 
-        brake_min, brake_max = st.slider(
-            "刹车速度范围(m/s)",
-            0.0, 10.0, (0.0, 5.0),
-            help="刹车数据的速度过滤范围：低于最小值或高于最大值的数据将被丢弃"
-        )
-        config.min_brake_speed_mps = brake_min
-        config.max_brake_speed_mps = brake_max
-
-        config.lowpass_cutoff = st.slider("Filter Hz", 0.1, 5.0, 1.0, 0.1, help="低通滤波截止频率: 去除高频噪声,越小越平滑")
+        config.lowpass_cutoff = st.slider("Filter Hz", 0.1, 5.0, 1.0, 0.1)
 
         p5, p6 = st.columns(2)
         with p5:
-            config.command_resolution = st.slider("Cmd %", 1.0, 10.0, 5.0, 0.5, help="命令轴分辨率(%): 标定表步长, 越小越精细")
+            config.command_resolution = st.slider("Cmd %", 1.0, 10.0, 5.0, 0.5)
         with p6:
-            config.speed_resolution = st.slider("Speed %", 0.1, 1.0, 0.2, 0.05, help="速度轴分辨率(m/s): 标定表步长, 越小越精细")
+            config.speed_resolution = st.slider("Speed m/s", 0.1, 1.0, 0.2, 0.05)
 
-        config.enable_lof = st.checkbox("LOF", True, help="启用异常值检测: 自动过滤传感器噪声和异常数据点")
+        config.enable_lof = st.checkbox("LOF", True)
         if config.enable_lof:
             p7, p8 = st.columns(2)
             with p7:
-                config.lof_neighbors = st.slider("Neighbors", 5, 100, 30, help="LOF邻居数: 判断异常值时参考的邻近点数量")
+                config.lof_neighbors = st.slider("Neighbors", 5, 100, 30)
             with p8:
-                config.lof_contamination = st.slider("Contam", 0.0, 0.1, 0.02, 0.005, format="%.3f", help="污染率: 预期异常值比例, 越小越严格")
+                config.lof_contamination = st.slider("Contam", 0.0, 0.1, 0.02, 0.005, format="%.3f")
 
     # === 加载数据 ===
     raw_df, clean_df, speed_grid, cmd_grid, accel_grid, metrics = load_and_process(config, str(data_dir))
@@ -839,15 +1016,64 @@ with analysis_tab:
     # === 中列：可视化 ===
     with viz_col:
         if raw_df is not None and speed_grid is not None and len(speed_grid) > 0:
+            # 可视化数据切换
+            viz_mode = st.radio(
+                "显示数据",
+                ["油门+刹车", "仅油门", "仅刹车"],
+                horizontal=True,
+                help="选择3D曲面图显示的数据范围"
+            )
+
+            # 根据选择过滤数据
+            if viz_mode == "仅油门":
+                mask_filter = (cmd_grid >= 0)
+                display_name = "油门标定曲面"
+            elif viz_mode == "仅刹车":
+                mask_filter = (cmd_grid <= 0)
+                display_name = "刹车标定曲面"
+            else:
+                mask_filter = slice(None)  # 全部
+                display_name = "完整标定曲面"
+
+            # 过滤命令网格和加速度网格
+            if isinstance(mask_filter, slice):
+                cmd_grid_display = cmd_grid[mask_filter]
+                accel_grid_display = accel_grid[mask_filter, :]
+            else:
+                # Boolean array indexing
+                cmd_grid_display = cmd_grid[mask_filter]
+                accel_grid_display = accel_grid[mask_filter, :]
+
+            # 过滤散点数据
+            if viz_mode == "仅油门":
+                scatter_df = clean_df[clean_df["command"] > 0].copy()
+            elif viz_mode == "仅刹车":
+                scatter_df = clean_df[clean_df["command"] < 0].copy()
+            else:
+                scatter_df = clean_df.copy()
+
+            scatter_df = scatter_df.sample(min(2000, len(scatter_df)), random_state=0)
+
             # 3D Surface Plot
             fig = go.Figure()
-            fig.add_trace(go.Surface(z=accel_grid.T, x=cmd_grid, y=speed_grid, colorscale="RdBu", opacity=0.85))
-            scatter_df = clean_df.sample(min(2000, len(clean_df)), random_state=0)
+            fig.add_trace(go.Surface(
+                z=accel_grid_display.T,
+                x=cmd_grid_display,
+                y=speed_grid,
+                colorscale="RdBu",
+                opacity=0.85,
+                colorbar={"title": "Accel (m/s²)"}
+            ))
             fig.add_trace(go.Scatter3d(
-                x=scatter_df["command"], y=scatter_df["final_speed"], z=scatter_df["accel_aligned"],
-                mode="markers", marker={"size": 2, "color": "black"}, name="samples",
+                x=scatter_df["command"],
+                y=scatter_df["final_speed"],
+                z=scatter_df["accel_aligned"],
+                mode="markers",
+                marker={"size": 2, "color": "black"},
+                name="samples",
             ))
             fig.update_layout(
+                title=display_name,
                 scene={
                     "xaxis_title": "Cmd %",
                     "yaxis_title": "Speed m/s",
@@ -857,7 +1083,7 @@ with analysis_tab:
                         "center": {"x": 0, "y": 0, "z": 0},
                     }
                 },
-                height=500, margin={"l": 0, "r": 0, "t": 0, "b": 0}
+                height=500, margin={"l": 0, "r": 0, "t": 30, "b": 0}
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -909,57 +1135,111 @@ with analysis_tab:
     with metrics_col:
         if raw_df is not None:
             st.markdown("##### 📊 指标 Metrics")
-            st.markdown("---")
 
-            # 准备指标数据（2列显示）
-            all_metrics = []
+            # 调整指标标题间距
+            st.markdown("""
+            <style>
+            /* 调整指标标题间距 - 在列内注入 */
+            [data-testid="stMarkdownContainer"] strong {
+                display: block !important;
+                margin-top: 0.6rem !important;
+                margin-bottom: -0.3rem !important;
+                font-size: 0.9rem !important;
+            }
+            /* 压缩指标容器顶部间距 */
+            .metric-container {
+                margin-top: -0.2rem !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
 
+            # === 油门指标 ===
+            st.markdown("**油门指标**")
+            throttle_metrics = []
             t_dz = metrics.get('throttle_deadzone_pct', 0)
-            b_dz = metrics.get('brake_deadzone_pct', 0)
-            all_metrics.append(("油门死区", f"{t_dz:.0f}%", get_metric_rating(t_dz, 'deadzone')))
-            all_metrics.append(("刹车死区", f"{b_dz:.0f}%", get_metric_rating(b_dz, 'deadzone')))
+            rating_t_dz = get_metric_rating(t_dz, 'deadzone')
+            throttle_metrics.append((f"油门死区", f"{t_dz:.0f}%", rating_t_dz, "最小指令产生响应的阈值"))
 
             t_r2 = metrics.get('throttle_linearity_R2', 0)
+            rating_t_r2 = get_metric_rating(t_r2, 'r2')
+            throttle_metrics.append((f"线性度(R²)", f"{t_r2:.3f}", rating_t_r2, "参考指标，非主要评价标准"))
+
+            t_smooth = metrics.get('throttle_smoothness_score_100', 0)
+            rating_t_smooth = get_metric_rating(t_smooth, 'smoothness')
+            throttle_metrics.append((f"平滑度", f"{t_smooth:.0f}分", rating_t_smooth, "曲线平滑度评分"))
+
+            t_vio = metrics.get('throttle_monotonic_violations', 0)
+            rating_t_vio = get_metric_rating(t_vio, 'monotonicity')
+            throttle_metrics.append((f"单调性", f"{t_vio}违反", rating_t_vio, "硬性要求：必须为0违反"))
+
+            t_mae = metrics.get('throttle_residual_mae')
+            if t_mae is not None:
+                rating_t_mae = get_metric_rating(t_mae, 'mae')
+                throttle_metrics.append((f"平均误差", f"{t_mae:.3f}", rating_t_mae, "主要评价指标：越小越好"))
+                t_rmse = metrics.get('throttle_residual_rmse', 0)
+                rating_t_rmse = get_metric_rating(t_rmse, 'rmse')
+                throttle_metrics.append((f"均方根误差", f"{t_rmse:.3f}", rating_t_rmse, "主要评价指标：越小越好"))
+
+            render_metrics_grid(throttle_metrics, columns=2)
+
+            # === 刹车指标 ===
+            st.markdown("**刹车指标**")
+            brake_metrics = []
+            b_dz = metrics.get('brake_deadzone_pct', 0)
+            rating_b_dz = get_metric_rating(b_dz, 'deadzone')
+            brake_metrics.append((f"刹车死区", f"{b_dz:.0f}%", rating_b_dz, "最小指令产生响应的阈值"))
+
             b_r2 = metrics.get('brake_linearity_R2', 0)
-            all_metrics.append(("油门线性度", f"{t_r2:.2f}", get_metric_rating(t_r2, 'r2'),
-                               "参考指标"))
-            all_metrics.append(("刹车线性度", f"{b_r2:.2f}", get_metric_rating(b_r2, 'r2'),
-                               "参考指标"))
+            rating_b_r2 = get_metric_rating(b_r2, 'r2')
+            brake_metrics.append((f"线性度(R²)", f"{b_r2:.3f}", rating_b_r2, "参考指标，非主要评价标准"))
 
-            smooth = metrics.get('smoothness_score_100', 0)
-            all_metrics.append(("平滑度", f"{smooth:.0f}", get_metric_rating(smooth, 'smoothness')))
+            b_smooth = metrics.get('brake_smoothness_score_100', 0)
+            rating_b_smooth = get_metric_rating(b_smooth, 'smoothness')
+            brake_metrics.append((f"平滑度", f"{b_smooth:.0f}分", rating_b_smooth, "曲线平滑度评分"))
 
+            b_vio = metrics.get('brake_monotonic_violations', 0)
+            rating_b_vio = get_metric_rating(b_vio, 'monotonicity')
+            brake_metrics.append((f"单调性", f"{b_vio}违反", rating_b_vio, "硬性要求：必须为0违反"))
+
+            b_mae = metrics.get('brake_residual_mae')
+            if b_mae is not None:
+                rating_b_mae = get_metric_rating(b_mae, 'mae')
+                brake_metrics.append((f"平均误差", f"{b_mae:.3f}", rating_b_mae, "主要评价指标：越小越好"))
+                b_rmse = metrics.get('brake_residual_rmse', 0)
+                rating_b_rmse = get_metric_rating(b_rmse, 'rmse')
+                brake_metrics.append((f"均方根误差", f"{b_rmse:.3f}", rating_b_rmse, "主要评价指标：越小越好"))
+
+            render_metrics_grid(brake_metrics, columns=2)
+
+            # === 下方：公共指标 ===
+            st.markdown("**公共指标**")
+
+            # 响应范围
             max_accel = metrics.get('max_throttle_accel', 0)
             max_decel = metrics.get('max_brake_decel', 0)
-            all_metrics.append(("响应范围", f"{max_accel:.1f}/{max_decel:.1f}", {'grade': 80, 'color': '#64DD17', 'label': 'm/s²'}))
+            st.markdown(f"""
+            <div style="display:flex;gap:20px;margin-bottom:8px;">
+                <div style="font-size:11px;color:#999;">响应范围:</div>
+                <div style="font-size:13px;color:#64DD17;">油门 {max_accel:.2f} m/s²</div>
+                <div style="font-size:13px;color:#FF3D00;">刹车 {max_decel:.2f} m/s²</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-            if metrics.get('residual_mae') is not None:
-                mae = metrics.get('residual_mae', 0)
-                rmse = metrics.get('residual_rmse', 0)
-                all_metrics.append(("平均误差", f"{mae:.3f}", get_metric_rating(mae, 'mae')))
-                all_metrics.append(("均方根误差", f"{rmse:.3f}", get_metric_rating(rmse, 'rmse')))
-
-                tol_pct = metrics.get('within_tolerance_pct', 0)
-                all_metrics.append(("拟合精度", f"{tol_pct:.0f}", get_metric_rating(tol_pct, 'tolerance_pct')))
-
-            # 渲染指标（2列）
-            render_metrics_grid(all_metrics, columns=2)
-
-            # 单调性
+            # 单调性总体状态
             mono_pass = metrics.get('monotonicity_pass', False)
             t_vio = metrics.get('throttle_monotonic_violations', 0)
             b_vio = metrics.get('brake_monotonic_violations', 0)
 
             mono_color = '#00C853' if mono_pass else '#FF3D00'
-            mono_status = '✓' if mono_pass else '✗'
+            mono_status = '✓ 通过' if mono_pass else '✗ 不通过'
 
             st.markdown(f"""
-            <div style="margin-top:4px;padding:6px 8px;background: {'#1A2E1A' if mono_pass else '#2E1A1A'};border-radius:4px;border-left:2px solid {mono_color};">
+            <div style="padding:6px 8px;background:#1A2E1A;border-radius:4px;border-left:2px solid {mono_color};">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span style="font-size:11px;color:#CCC;">单调性</span>
+                    <span style="font-size:11px;color:#CCC;">单调性总评</span>
                     <span style="font-size:12px;font-weight:bold;color:{mono_color};">{mono_status}</span>
                 </div>
-                <div style="margin-top:2px;font-size:10px;color:#999;">油门:{t_vio} 刹车:{b_vio}</div>
+                <div style="margin-top:2px;font-size:10px;color:#999;">油门:{t_vio} 违反  |  刹车:{b_vio} 违反</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -971,27 +1251,6 @@ if st.sidebar.button("🔄 清除缓存"):
     st.cache_data.clear()
     st.success("缓存已清除")
     st.rerun()
-
-# 快速目录切换
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 📁 快速目录")
-quick_dir = st.sidebar.text_input("数据目录", value=output_default())
-if st.sidebar.button("跳转到此目录"):
-    st.session_state['analysis_data_dir'] = quick_dir
-    st.rerun()
-
-# 配置预设
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🔧 配置预设")
-preset = st.sidebar.selectbox("选择预设", ["默认", "精细模式", "快速模式"])
-
-# 根据预设自动设置参数
-if preset == "默认":
-    st.sidebar.caption("平衡精度和速度")
-elif preset == "精细模式":
-    st.sidebar.caption("高精度，慢处理")
-elif preset == "快速模式":
-    st.sidebar.caption("快速预览")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Runtime")
