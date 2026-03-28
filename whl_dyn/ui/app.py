@@ -734,53 +734,84 @@ plan_tab, collect_tab, analysis_tab = st.tabs([
 ])
 
 with plan_tab:
-    st.subheader("Generate Calibration Plan")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        t_min = st.number_input("Throttle min (%)", 0, 100, 0)
-        t_max = st.number_input("Throttle max (%)", 0, 100, 80)
-        t_steps = st.number_input("Throttle steps", 1, 30, 5)
-    with col2:
-        b_min = st.number_input("Brake min (%)", 0, 100, 0)
-        b_max = st.number_input("Brake max (%)", 0, 100, 50)
-        b_steps = st.number_input("Brake steps", 1, 30, 5)
-    with col3:
-        speed_targets = st.text_input("Speed targets (m/s, comma)", "1.0,2.0")
-        default_brake = st.number_input("Default stop brake (%)", 0.0, 100.0, 30.0)
-        hold_duration = st.number_input("Hold after trigger (ms)", 0, 5000, 0, help="触发条件满足后保持时间(毫秒), 0表示立即切换")
+    # 修复text_input label的margin-bottom对齐问题
+    st.markdown("""
+    <style>
+    [data-testid="stTextInput"] label {
+        margin-bottom: 0 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    plan_path_text = st.text_input("Plan file", value=plan_default)
+    # 左侧参数网格，右侧操作区
+    left_col, right_col = st.columns([2, 1])
+
+    with left_col:
+        # 第一行：油门参数（滑块 + 步数）
+        t_col1, t_col2 = st.columns([4, 1])
+        with t_col1:
+            t_range = st.slider("油门范围 (%)", 0, 100, (0, 80))
+            t_min, t_max = t_range
+        with t_col2:
+            t_steps = st.number_input("油门步数", 1, 30, 5)
+
+        # 第二行：刹车参数（滑块 + 步数）
+        b_col1, b_col2 = st.columns([4, 1])
+        with b_col1:
+            b_range = st.slider("刹车范围 (%)", 0, 100, (0, 80))
+            b_min, b_max = b_range
+        with b_col2:
+            b_steps = st.number_input("刹车步数", 1, 30, 5)
+
+        # 第三行：其他参数
+        g1, g2, g3, g4 = st.columns([3, 1, 1, 1])
+        with g1:
+            speed_targets = st.text_input("速度目标 (m/s, 逗号分隔)", "3.0")
+        with g2:
+            default_throttle = st.number_input("默认油门 (%)", 0.0, 100.0, 80.0)
+        with g3:
+            default_brake = st.number_input("默认刹车 (%)", 0.0, 100.0, 30.0)
+        with g4:
+            hold_duration = st.number_input("保持时间 (ms)", 0, 5000, 500,
+                                           help="触发条件满足后保持时间(毫秒), 0表示立即切换")
+
+    with right_col:
+        st.markdown("**操作**")
+        plan_path_text = st.text_input("计划文件路径", value=plan_default, label_visibility="collapsed")
+        st.write("")  # 添加间距
+        if st.button("生成计划", type="primary", use_container_width=True):
+            plan_path = resolve_path(plan_path_text)
+            targets = [float(x.strip()) for x in speed_targets.split(",") if x.strip()]
+            args = Namespace(
+                output=str(plan_path),
+                throttle_min=int(t_min),
+                throttle_max=int(t_max),
+                throttle_num_steps=int(t_steps),
+                brake_min=int(b_min),
+                brake_max=int(b_max),
+                brake_num_steps=int(b_steps),
+                speed_targets=targets,
+                default_throttle=float(default_throttle),
+                default_brake=float(default_brake),
+                hold_duration_ms=int(hold_duration),
+                accel_timeout=30.0,
+                decel_timeout=30.0,
+            )
+            generate_calibration_plan(args)
+            st.success(f"计划已生成: {plan_path}")
+
     plan_path = resolve_path(plan_path_text)
-
-    if st.button("Generate plan", type="primary"):
-        targets = [float(x.strip()) for x in speed_targets.split(",") if x.strip()]
-        args = Namespace(
-            output=str(plan_path),
-            throttle_min=int(t_min),
-            throttle_max=int(t_max),
-            throttle_num_steps=int(t_steps),
-            brake_min=int(b_min),
-            brake_max=int(b_max),
-            brake_num_steps=int(b_steps),
-            speed_targets=targets,
-            default_brake=float(default_brake),
-            hold_duration_ms=int(hold_duration),
-            accel_timeout=30.0,
-            decel_timeout=30.0,
-        )
-        generate_calibration_plan(args)
-        st.success(f"Plan generated: {plan_path}")
-
     plan = load_plan(plan_path)
     plan_df = build_plan_df(plan)
-    view_mode = st.radio("Plan view", ["Table", "Source"], horizontal=True)
-    if view_mode == "Table":
+
+    view_mode = st.radio("视图模式", ["表格", "源码"], horizontal=True, label_visibility="collapsed")
+    if view_mode == "表格":
         st.dataframe(plan_df, use_container_width=True)
     else:
         if plan_path.exists():
             st.code(plan_path.read_text(encoding="utf-8"), language="yaml")
         else:
-            st.warning("Plan file not found.")
+            st.warning("计划文件未找到。")
 
 with collect_tab:
     running = poll_runtime()
