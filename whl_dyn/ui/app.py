@@ -1,4 +1,5 @@
 import dataclasses
+import html
 import select
 import subprocess
 import sys
@@ -304,6 +305,218 @@ def results_default() -> str:
     return str(PROJECT_ROOT / "calibration_results")
 
 
+def get_metric_rating(value: float, metric_type: str) -> dict:
+    """
+    Get rating (grade 0-100, color, label) for a metric value.
+    Returns position 0-100 for vertical scale marker.
+    """
+    if metric_type == 'mae':
+        # MAE: 越小越好 (业界标准)
+        if value < 0.10:
+            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+        elif value < 0.20:
+            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+        elif value < 0.35:
+            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+        else:
+            return {'grade': 25, 'color': '#FF3D00', 'label': '需改进'}
+
+    elif metric_type == 'rmse':
+        if value < 0.15:
+            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+        elif value < 0.30:
+            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+        elif value < 0.50:
+            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+        else:
+            return {'grade': 25, 'color': '#FF3D00', 'label': '需改进'}
+
+    elif metric_type == 'r2':
+        # R²: 参考指标，非主要评价标准
+        if value >= 0.90:
+            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+        elif value >= 0.80:
+            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+        elif value >= 0.70:
+            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+        else:
+            return {'grade': 25, 'color': '#FF3D00', 'label': '需改进'}
+
+    elif metric_type == 'deadzone':
+        if value < 5:
+            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+        elif value < 10:
+            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+        elif value < 15:
+            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+        else:
+            return {'grade': 25, 'color': '#FF3D00', 'label': '偏大'}
+
+    elif metric_type == 'smoothness':
+        if value >= 90:
+            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+        elif value >= 75:
+            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+        elif value >= 60:
+            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+        else:
+            return {'grade': 25, 'color': '#FF3D00', 'label': '需改进'}
+
+    elif metric_type == 'tolerance_pct':
+        if value >= 90:
+            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+        elif value >= 80:
+            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+        elif value >= 70:
+            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+        else:
+            return {'grade': 25, 'color': '#FF3D00', 'label': '需改进'}
+
+    elif metric_type == 'monotonicity':
+        # 单调性违反次数：0为通过，>0为不通过
+        if value == 0:
+            return {'grade': 95, 'color': '#00C853', 'label': '通过'}
+        else:
+            return {'grade': 25, 'color': '#FF3D00', 'label': '违反'}
+
+    return {'grade': 0, 'color': '#9E9E9E', 'label': '未知'}
+
+
+def render_metric_compact(label: str, value: str, rating: dict, help_text: str = None):
+    """Render a compact metric with color badge."""
+    safe_label = html.escape(label)
+    safe_value = html.escape(value)
+    safe_rating_label = html.escape(rating['label'])
+    help_attr = f' title="{html.escape(help_text, quote=True)}"' if help_text else ''
+    st.markdown(f"""
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
+        <span style="font-size: 13px; color: #CCC;"{help_attr}>{safe_label}</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 14px; font-weight: 600; color: {rating['color']};">{safe_value}</span>
+            <span style="font-size: 10px; padding: 2px 6px; border-radius: 3px; background: {rating['color']}; color: #000;">{safe_rating_label}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_metrics_grid(metrics_data: list, columns: int = 3):
+    """Render multiple metrics in a grid layout with hover tooltip showing vertical scale."""
+    # 添加CSS样式
+    st.markdown("""
+    <style>
+    .metric-container {
+        position: relative;
+        padding: 6px 8px;
+        background: #1A1A1A;
+        border-radius: 6px;
+        cursor: help;
+    }
+    .metric-name {
+        font-size: 11px;
+        color: #999;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .metric-value-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .metric-tooltip {
+        display: none;
+        position: absolute;
+        left: 105%;
+        top: 50%;
+        transform: translateY(-50%);
+        background: #2A2A2A;
+        border: 1px solid #444;
+        border-radius: 6px;
+        padding: 8px 10px;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        white-space: nowrap;
+    }
+    .metric-container:hover .metric-tooltip {
+        display: block;
+    }
+    .vertical-scale {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 80px;
+    }
+    .scale-bar {
+        width: 12px;
+        height: 80px;
+        border-radius: 6px;
+        position: relative;
+        background: linear-gradient(to top,
+            #FF3D00 0%,   #FF3D00 40%,   /* 差: 0-40分 */
+            #FFD600 40%,  #FFD600 70%,   /* 一般: 40-70分 */
+            #64DD17 70%,  #64DD17 90%,   /* 良好: 70-90分 */
+            #00C853 90%,  #00C853 100%   /* 优秀: 90-100分 */
+        );
+    }
+    .scale-marker {
+        position: absolute;
+        left: -4px;
+        width: 20px;
+        height: 2px;
+        background: #FFF;
+        box-shadow: 0 0 6px rgba(0,0,0,0.9);
+        border-radius: 1px;
+    }
+    .scale-labels {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 80px;
+        font-size: 9px;
+        color: #888;
+    }
+    .tooltip-value {
+        font-size: 11px;
+        color: #FFF;
+        margin-bottom: 4px;
+        font-weight: bold;
+    }
+    .tooltip-hint {
+        font-size: 10px;
+        color: #AAA;
+        margin-top: 4px;
+        font-style: italic;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    for i in range(0, len(metrics_data), columns):
+        cols = st.columns(columns)
+        for j in range(columns):
+            if i + j < len(metrics_data):
+                with cols[j]:
+                    item = metrics_data[i + j]
+                    # Support both 3-tuple and 4-tuple
+                    if len(item) == 4:
+                        label, value, rating, help_text = item
+                    else:
+                        label, value, rating = item
+                        help_text = None
+
+                    # 计算marker位置 (grade 0-100，0在底部/差，100在顶部/优秀)
+                    marker_pos = max(2, min(98, rating['grade']))
+
+                    # Build tooltip HTML without escaping (since values are controlled)
+                    tooltip_html = f'<div class="tooltip-value">{value}</div>'
+                    if help_text:
+                        tooltip_html += f'<div class="tooltip-hint">{help_text}</div>'
+                    tooltip_html += f'''<div class="vertical-scale"><div class="scale-bar"><div class="scale-marker" style="bottom: {marker_pos}%;"></div></div><div class="scale-labels"><span>优秀</span><span>良好</span><span>一般</span><span>差</span></div></div>'''
+
+                    html_content = f'''<div class="metric-container"><div class="metric-name">{label}</div><div class="metric-value-row"><span style="font-size: 13px; font-weight: 600; color: {rating['color']};">{value}</span><span style="font-size: 8px; padding: 1px 3px; border-radius: 2px; background: {rating['color']}; color: #000;">{rating['label']}</span></div><div class="metric-tooltip">{tooltip_html}</div></div>'''
+                    st.markdown(html_content, unsafe_allow_html=True)
+
+
 def build_lookup_table_frames(speed_grid, command_grid, grid_z):
     if speed_grid is None or command_grid is None or grid_z is None:
         return pd.DataFrame(), pd.DataFrame()
@@ -365,14 +578,35 @@ def load_and_process(config: CalibrationConfig, directory: str):
         return None, None, None, None, None, None
     core.process_signals()
     speed_grid, command_grid, grid_z = core.build_calibration_table()
-    metrics = MetricsEvaluator.evaluate(speed_grid, command_grid, grid_z)
+    metrics = MetricsEvaluator.evaluate(speed_grid, command_grid, grid_z, core.processed_df)
     return core.unified_df, core.processed_df, speed_grid, command_grid, grid_z, metrics
 
 
 init_state()
 st.set_page_config(page_title="Chassis Dynamics Calibration", layout="wide", page_icon="🚗")
+
+# 永久隐藏顶部菜单，节省空间
+st.markdown("""
+<style>
+/* 隐藏顶部菜单 */
+.stApp header {display: none !important;}
+
+/* 隐藏deploy按钮 */
+.stDeployButton {display: none !important;}
+
+/* 减少顶部空白 */
+.block-container {padding-top: 0.3rem !important;}
+
+/* 压缩标题间距 */
+.stTitle {padding: 0.1rem 1rem 0.2rem !important; font-size: 1.5rem !important;}
+.stCaption {padding: 0 1rem 0.3rem 0 !important; font-size: 0.85rem !important;}
+
+/* 隐藏running info等 */
+.stStatusWidget {display: none !important;}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("Chassis Dynamics Calibration Dashboard")
-st.caption("Plan generation, real collection control, online QA, and WYSIWYG calibration analysis.")
 
 plan_default = str(PROJECT_ROOT / "calibration_plan.yaml")
 plan_tab, collect_tab, analysis_tab = st.tabs([
@@ -526,89 +760,222 @@ with collect_tab:
             st.rerun()
 
 with analysis_tab:
-    st.subheader("WYSIWYG Processing and Analytics")
-    data_dir_text = st.text_input("Data directory", value=output_default(), key="analysis_data_dir")
-    data_dir = resolve_path(data_dir_text)
-    export_dir_text = st.text_input("Export directory", value=results_default(), key="analysis_export_dir")
-    export_dir = resolve_path(export_dir_text)
+    # === 顶部路径输入 ===
+    col_path1, col_path2 = st.columns(2)
+    with col_path1:
+        data_dir_text = st.text_input("Data directory", value=output_default(), key="analysis_data_dir")
+        data_dir = resolve_path(data_dir_text)
+    with col_path2:
+        export_dir_text = st.text_input("Export directory", value=results_default(), key="analysis_export_dir")
+        export_dir = resolve_path(export_dir_text)
 
     config = CalibrationConfig()
-    left, right = st.columns([1, 2])
-    with left:
-        config.speed_source = st.selectbox("Speed source", ["chassis", "localization"])
-        config.accel_source = st.selectbox("Acceleration source", ["imu", "derivative"])
-        config.lowpass_cutoff = st.slider("Low-pass cutoff (Hz)", 0.1, 5.0, 1.0, 0.1)
-        config.throttle_latency_ms = st.number_input("Throttle latency (ms)", 0, 500, 60)
-        config.brake_latency_ms = st.number_input("Brake latency (ms)", 0, 500, 60)
-        config.enable_lof = st.checkbox("Enable LOF", True)
-        config.lof_neighbors = st.slider("LOF neighbors", 5, 100, 30)
-        config.lof_contamination = st.slider("LOF contamination", 0.0, 0.1, 0.02, 0.01)
-        config.command_resolution = st.slider("Command resolution", 1.0, 10.0, 5.0, 1.0)
-        config.speed_resolution = st.slider("Speed resolution", 0.1, 1.0, 0.2, 0.1)
 
+    # === 三列布局：参数 | 可视化 | 指标 ===
+    param_col, viz_col, metrics_col = st.columns([1, 2.5, 1])
+
+    # === 左列：参数调节（双列紧凑布局） ===
+    with param_col:
+        st.markdown("##### ⚙️ 参数")
+
+        # 双列布局减少高度
+        p1, p2 = st.columns(2)
+        with p1:
+            config.speed_source = st.selectbox("Speed", ["chassis", "localization"], help="速度数据来源: chassis=底盘, localization=定位")
+        with p2:
+            config.accel_source = st.selectbox("Accel", ["imu", "derivative"], help="加速度来源: imu=IMU传感器, derivative=速度微分")
+
+        p3, p4 = st.columns(2)
+        with p3:
+            config.throttle_latency_ms = st.number_input("Throttle ms", 0, 500, 60, help="油门响应延迟补偿(毫秒)")
+        with p4:
+            config.brake_latency_ms = st.number_input("Brake ms", 0, 500, 60, help="刹车响应延迟补偿(毫秒)")
+
+        p_stab1, p_stab2 = st.columns(2)
+        with p_stab1:
+            config.throttle_stability_window_ms = st.number_input("油门稳定窗口(ms)", 0, 1000, 200, help="命令切换后丢弃的时间窗口(毫秒)")
+        with p_stab2:
+            config.brake_stability_window_ms = st.number_input("刹车稳定窗口(ms)", 0, 1000, 300, help="命令切换后丢弃的时间窗口(毫秒)")
+
+        config.min_throttle_speed_mps = st.slider("油门最小速度(m/s)", 0.0, 2.0, 0.5, 0.1, help="低于此速度的油门数据将被丢弃")
+
+        config.lowpass_cutoff = st.slider("Filter Hz", 0.1, 5.0, 1.0, 0.1, help="低通滤波截止频率: 去除高频噪声,越小越平滑")
+
+        p5, p6 = st.columns(2)
+        with p5:
+            config.command_resolution = st.slider("Cmd %", 1.0, 10.0, 5.0, 0.5, help="命令轴分辨率(%): 标定表步长, 越小越精细")
+        with p6:
+            config.speed_resolution = st.slider("Speed %", 0.1, 1.0, 0.2, 0.05, help="速度轴分辨率(m/s): 标定表步长, 越小越精细")
+
+        config.enable_lof = st.checkbox("LOF", True, help="启用异常值检测: 自动过滤传感器噪声和异常数据点")
+        if config.enable_lof:
+            p7, p8 = st.columns(2)
+            with p7:
+                config.lof_neighbors = st.slider("Neighbors", 5, 100, 30, help="LOF邻居数: 判断异常值时参考的邻近点数量")
+            with p8:
+                config.lof_contamination = st.slider("Contam", 0.0, 0.1, 0.02, 0.005, format="%.3f", help="污染率: 预期异常值比例, 越小越严格")
+
+    # === 加载数据 ===
     raw_df, clean_df, speed_grid, cmd_grid, accel_grid, metrics = load_and_process(config, str(data_dir))
 
-    with right:
-        if raw_df is None:
-            st.warning(f"No valid CSV data in: {data_dir}")
-        else:
-            top1, top2, top3, top4 = st.columns(4)
-            top1.metric("Raw rows", len(raw_df))
-            top2.metric("Processed rows", len(clean_df))
-            top3.metric("Throttle deadzone", f"{metrics.get('throttle_deadzone_pct', 0):.1f}%")
-            top4.metric("Smoothness", f"{metrics.get('smoothness_score_100', 0):.1f}/100")
+    # === 中列：可视化 ===
+    with viz_col:
+        if raw_df is not None and speed_grid is not None and len(speed_grid) > 0:
+            # 3D Surface Plot
+            fig = go.Figure()
+            fig.add_trace(go.Surface(z=accel_grid.T, x=cmd_grid, y=speed_grid, colorscale="RdBu", opacity=0.85))
+            scatter_df = clean_df.sample(min(2000, len(clean_df)), random_state=0)
+            fig.add_trace(go.Scatter3d(
+                x=scatter_df["command"], y=scatter_df["final_speed"], z=scatter_df["accel_aligned"],
+                mode="markers", marker={"size": 2, "color": "black"}, name="samples",
+            ))
+            fig.update_layout(
+                scene={
+                    "xaxis_title": "Cmd %",
+                    "yaxis_title": "Speed m/s",
+                    "zaxis_title": "Accel m/s²",
+                    "camera": {
+                        "eye": {"x": -1.5, "y": 1.5, "z": 1.5},
+                        "center": {"x": 0, "y": 0, "z": 0},
+                    }
+                },
+                height=500, margin={"l": 0, "r": 0, "t": 0, "b": 0}
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-            export_col1, export_col2, export_col3 = st.columns(3)
-            if export_col1.button("Export calibration tables"):
-                export_dir.mkdir(parents=True, exist_ok=True)
-                Exporter.save_unified_csv(speed_grid, cmd_grid, accel_grid, export_dir)
-                Exporter.save_protobuf(speed_grid, cmd_grid, accel_grid, export_dir)
-                Exporter.save_metrics(metrics, export_dir)
-                st.success(f"Calibration tables exported to {export_dir}")
-            if export_col2.button("Export step responses"):
-                export_dir.mkdir(parents=True, exist_ok=True)
-                core = DataCore(config)
-                core.load_data(str(data_dir))
-                core.process_signals()
-                Exporter.save_step_responses(core.raw_dfs, export_dir)
-                st.success(f"Step responses exported to {export_dir / 'step_responses'}")
-            export_col3.caption(str(export_dir))
+            # 底部导出按钮
+            exp1, exp2 = st.columns(2)
+            with exp1:
+                if st.button("📥 Export", use_container_width=True):
+                    export_dir.mkdir(parents=True, exist_ok=True)
+                    Exporter.save_unified_csv(speed_grid, cmd_grid, accel_grid, export_dir)
+                    Exporter.save_protobuf(speed_grid, cmd_grid, accel_grid, export_dir)
+                    Exporter.save_metrics(metrics, export_dir)
+                    st.success(f"Exported to {export_dir}")
+            with exp2:
+                if st.button("📈 Steps", use_container_width=True):
+                    export_dir.mkdir(parents=True, exist_ok=True)
+                    core = DataCore(config)
+                    core.load_data(str(data_dir))
+                    core.process_signals()
+                    Exporter.save_step_responses(core.raw_dfs, export_dir)
+                    st.success(f"Exported to {export_dir / 'step_responses'}")
 
-            if speed_grid is not None and len(speed_grid) > 0:
-                fig = go.Figure()
-                fig.add_trace(go.Surface(z=accel_grid.T, x=cmd_grid, y=speed_grid, colorscale="RdBu", opacity=0.85, name="surface"))
-                scatter_df = clean_df.sample(min(2000, len(clean_df)), random_state=0)
-                fig.add_trace(go.Scatter3d(
-                    x=scatter_df["command"],
-                    y=scatter_df["final_speed"],
-                    z=scatter_df["accel_aligned"],
-                    mode="markers",
-                    marker={"size": 2, "color": "black"},
-                    name="samples",
-                ))
-                fig.update_layout(scene={"xaxis_title": "Command (%)", "yaxis_title": "Speed (m/s)", "zaxis_title": "Accel (m/s^2)"}, height=620)
-                st.plotly_chart(fig, use_container_width=True)
-
+            # 表格和响应曲线（折叠显示）
+            with st.expander("📋 标定表 & 响应曲线"):
+                tab1, tab2, tab3 = st.tabs(["油门表", "刹车表", "响应曲线"])
                 throttle_table, brake_table = build_lookup_table_frames(speed_grid, cmd_grid, accel_grid)
-                table_tab1, table_tab2, table_tab3 = st.tabs(["Throttle Table", "Brake Table", "Response Curves"])
-                with table_tab1:
-                    st.dataframe(throttle_table.style.format("{:.3f}"), use_container_width=True)
-                with table_tab2:
-                    st.dataframe(brake_table.style.format("{:.3f}"), use_container_width=True)
-                with table_tab3:
+                with tab1:
+                    st.dataframe(throttle_table.style.format("{:.3f}"), use_container_width=True, height=300)
+                with tab2:
+                    st.dataframe(brake_table.style.format("{:.3f}"), use_container_width=True, height=300)
+                with tab3:
                     st.plotly_chart(build_speed_slice_figure(speed_grid, cmd_grid, accel_grid), use_container_width=True)
 
-            if "source_file" in clean_df.columns and len(clean_df) > 0:
-                selected_file = st.selectbox("Step response file", sorted(clean_df["source_file"].unique().tolist()))
-                step_df = clean_df[clean_df["source_file"] == selected_file].sort_values("time")
-                if not step_df.empty:
-                    fig2 = go.Figure()
-                    fig2.add_trace(go.Scatter(x=step_df["time"], y=step_df["command"], name="command"))
-                    fig2.add_trace(go.Scatter(x=step_df["time"], y=step_df["raw_accel"] * 10.0, name="raw_accel*10"))
-                    fig2.add_trace(go.Scatter(x=step_df["time"], y=step_df["accel_aligned"] * 10.0, name="aligned_accel*10"))
-                    fig2.update_layout(height=420, xaxis_title="time", yaxis_title="scaled value")
-                    st.plotly_chart(fig2, use_container_width=True)
+                # 单个文件响应
+                if "source_file" in clean_df.columns and len(clean_df) > 0:
+                    st.markdown("---")
+                    selected_file = st.selectbox("Step Response File", sorted(clean_df["source_file"].unique().tolist()))
+                    step_df = clean_df[clean_df["source_file"] == selected_file].sort_values("time")
+                    if not step_df.empty:
+                        fig2 = go.Figure()
+                        fig2.add_trace(go.Scatter(x=step_df["time"], y=step_df["command"], name="cmd"))
+                        fig2.add_trace(go.Scatter(x=step_df["time"], y=step_df["raw_accel"] * 10.0, name="raw*10"))
+                        fig2.add_trace(go.Scatter(x=step_df["time"], y=step_df["accel_aligned"] * 10.0, name="align*10"))
+                        fig2.update_layout(height=300, xaxis_title="time", yaxis_title="scaled", margin={"l": 0, "r": 0, "t": 0, "b": 0})
+                        st.plotly_chart(fig2, use_container_width=True)
+        elif raw_df is None:
+            st.warning(f"No data in: {data_dir}")
 
+    # === 右列：质量指标 ===
+    with metrics_col:
+        if raw_df is not None:
+            st.markdown("##### 📊 指标 Metrics")
+            st.markdown("---")
+
+            # 准备指标数据（2列显示）
+            all_metrics = []
+
+            t_dz = metrics.get('throttle_deadzone_pct', 0)
+            b_dz = metrics.get('brake_deadzone_pct', 0)
+            all_metrics.append(("油门死区", f"{t_dz:.0f}%", get_metric_rating(t_dz, 'deadzone')))
+            all_metrics.append(("刹车死区", f"{b_dz:.0f}%", get_metric_rating(b_dz, 'deadzone')))
+
+            t_r2 = metrics.get('throttle_linearity_R2', 0)
+            b_r2 = metrics.get('brake_linearity_R2', 0)
+            all_metrics.append(("油门线性度", f"{t_r2:.2f}", get_metric_rating(t_r2, 'r2'),
+                               "参考指标"))
+            all_metrics.append(("刹车线性度", f"{b_r2:.2f}", get_metric_rating(b_r2, 'r2'),
+                               "参考指标"))
+
+            smooth = metrics.get('smoothness_score_100', 0)
+            all_metrics.append(("平滑度", f"{smooth:.0f}", get_metric_rating(smooth, 'smoothness')))
+
+            max_accel = metrics.get('max_throttle_accel', 0)
+            max_decel = metrics.get('max_brake_decel', 0)
+            all_metrics.append(("响应范围", f"{max_accel:.1f}/{max_decel:.1f}", {'grade': 80, 'color': '#64DD17', 'label': 'm/s²'}))
+
+            if metrics.get('residual_mae') is not None:
+                mae = metrics.get('residual_mae', 0)
+                rmse = metrics.get('residual_rmse', 0)
+                all_metrics.append(("平均误差", f"{mae:.3f}", get_metric_rating(mae, 'mae')))
+                all_metrics.append(("均方根误差", f"{rmse:.3f}", get_metric_rating(rmse, 'rmse')))
+
+                tol_pct = metrics.get('within_tolerance_pct', 0)
+                all_metrics.append(("拟合精度", f"{tol_pct:.0f}", get_metric_rating(tol_pct, 'tolerance_pct')))
+
+            # 渲染指标（2列）
+            render_metrics_grid(all_metrics, columns=2)
+
+            # 单调性
+            mono_pass = metrics.get('monotonicity_pass', False)
+            t_vio = metrics.get('throttle_monotonic_violations', 0)
+            b_vio = metrics.get('brake_monotonic_violations', 0)
+
+            mono_color = '#00C853' if mono_pass else '#FF3D00'
+            mono_status = '✓' if mono_pass else '✗'
+
+            st.markdown(f"""
+            <div style="margin-top:4px;padding:6px 8px;background: {'#1A2E1A' if mono_pass else '#2E1A1A'};border-radius:4px;border-left:2px solid {mono_color};">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:11px;color:#CCC;">单调性</span>
+                    <span style="font-size:12px;font-weight:bold;color:{mono_color};">{mono_status}</span>
+                </div>
+                <div style="margin-top:2px;font-size:10px;color:#999;">油门:{t_vio} 刹车:{b_vio}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+# === 侧边栏实用功能 ===
+st.sidebar.markdown("### ⚡ 快捷操作")
+
+# 缓存管理
+if st.sidebar.button("🔄 清除缓存"):
+    st.cache_data.clear()
+    st.success("缓存已清除")
+    st.rerun()
+
+# 快速目录切换
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📁 快速目录")
+quick_dir = st.sidebar.text_input("数据目录", value=output_default())
+if st.sidebar.button("跳转到此目录"):
+    st.session_state['analysis_data_dir'] = quick_dir
+    st.rerun()
+
+# 配置预设
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔧 配置预设")
+preset = st.sidebar.selectbox("选择预设", ["默认", "精细模式", "快速模式"])
+
+# 根据预设自动设置参数
+if preset == "默认":
+    st.sidebar.caption("平衡精度和速度")
+elif preset == "精细模式":
+    st.sidebar.caption("高精度，慢处理")
+elif preset == "快速模式":
+    st.sidebar.caption("快速预览")
+
+st.sidebar.markdown("---")
 st.sidebar.markdown("### Runtime")
 st.sidebar.text(str(Path(__file__).resolve()))
 st.sidebar.text(time.strftime("%Y-%m-%d %H:%M:%S"))

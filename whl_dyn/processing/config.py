@@ -26,3 +26,10 @@ class CalibrationConfig:
     # --- Step Response / Sync Delay ---
     throttle_latency_ms: int = 60
     brake_latency_ms: int = 60
+
+    # --- Stability Window (discard data after command switch) ---
+    # Time to discard after command switch to avoid transient state
+    throttle_stability_window_ms: int = 200
+    brake_stability_window_ms: int = 300
+    # Minimum speed for throttle data (discard data at very low speeds)
+    min_throttle_speed_mps: float = 0.5

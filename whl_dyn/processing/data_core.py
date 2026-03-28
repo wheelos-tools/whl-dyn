@@ -85,6 +85,9 @@ class DataCore:
         features = ['final_speed', 'command', 'accel_aligned']
         df_clean = df.dropna(subset=features).copy()
 
+        # 2.5 Stability window filtering (remove transient state after command switch)
+        df_clean = self._apply_stability_filter(df_clean)
+
         # 3. LOF
         if self.config.enable_lof:
             df_t = df_clean[df_clean['command'] > 0].copy()
@@ -155,3 +158,57 @@ class DataCore:
         # Optional extra 1D smoothing along command axis could be added here
 
         return speed_grid, command_grid, grid_z
+
+    def _apply_stability_filter(self, df):
+        """Filter out transient state data after command switches."""
+        if df is None or df.empty:
+            return df
+
+        # Calculate stability window in samples
+        t_window_samples = int(self.config.throttle_stability_window_ms / 1000.0 * self.config.sampling_rate)
+        b_window_samples = int(self.config.brake_stability_window_ms / 1000.0 * self.config.sampling_rate)
+
+        # Group by source file to detect command switches within each file
+        filtered_dfs = []
+        for source_file in df['source_file'].unique():
+            file_df = df[df['source_file'] == source_file].copy()
+
+            if len(file_df) == 0:
+                continue
+
+            # Detect command switch points
+            file_df = file_df.reset_index(drop=True)
+            file_df['command_changed'] = file_df['command'].diff().abs() > 1e-6
+
+            # Mark samples within stability window after command switch
+            mask_keep = pd.Series([True] * len(file_df), index=file_df.index)
+
+            for idx in file_df[file_df['command_changed']].index:
+                # Get the command type at this switch point
+                cmd = file_df.loc[idx, 'command']
+                window = b_window_samples if cmd < 0 else t_window_samples
+
+                # Mark samples within the window to be discarded
+                end_idx = min(len(file_df), idx + window + 1)
+                mask_keep.iloc[idx:end_idx] = False
+
+            # Apply the mask
+            file_df_filtered = file_df[mask_keep].copy()
+
+            # For throttle: also filter out very low speeds
+            throttle_data = file_df_filtered[file_df_filtered['command'] > 0].copy()
+            if len(throttle_data) > 0:
+                throttle_data = throttle_data[throttle_data['final_speed'] >= self.config.min_throttle_speed_mps]
+
+            # Keep non-throttle data as is
+            non_throttle_data = file_df_filtered[file_df_filtered['command'] <= 0].copy()
+
+            filtered_dfs.append(pd.concat([throttle_data, non_throttle_data], ignore_index=True))
+
+        if filtered_dfs:
+            result = pd.concat(filtered_dfs, ignore_index=True)
+            # Drop the temporary column
+            if 'command_changed' in result.columns:
+                result = result.drop(columns=['command_changed'])
+            return result
+        return df
