@@ -29,6 +29,7 @@ class VehicleState:
     """Snapshot of all relevant vehicle data at a point in time"""
     timestamp: float = 0.0
     speed_mps: float = 0.0
+    ins_speed_mps: float = 0.0
     imu_accel_y: float = 0.0
     driving_mode: int = 0
     actual_gear: int = 0
@@ -49,7 +50,10 @@ class ControlState:
 class AdvancedDataCollector:
     """Ensures data quality and automation by executing calibration plans"""
 
-    def __init__(self, node, output_dir="./calibration_data_logs", auto_start=False):
+    def __init__(self,
+                 node,
+                 output_dir="./calibration_data_logs",
+                 auto_start=False):
         """Initialization"""
         self.node = node
         self.control_pub = node.create_writer('/apollo/control',
@@ -212,7 +216,7 @@ class AdvancedDataCollector:
     def _write_header(self):
         """Write CSV file header"""
         self.output_file.write(
-            "time,speed_mps,imu_accel_y,driving_mode,actual_gear,"
+            "time,speed_mps,ins_speed_mps,imu_accel_y,driving_mode,actual_gear,"
             "throttle_pct,brake_pct,ctl_throttle,ctl_brake\n")
 
     def _print_live_status(self):
@@ -317,6 +321,14 @@ class AdvancedDataCollector:
                                data: localization_pb2.LocalizationEstimate):
         """Handle localization messages"""
         self.vehicle_state.imu_accel_y = data.pose.linear_acceleration_vrf.y
+        # Note: linear_velocity_vrf field does NOT exist in localization protobuf
+        # Calculate speed from linear_velocity (map reference frame)
+        if (hasattr(data.pose, 'linear_velocity')
+                and data.pose.HasField('linear_velocity')):
+            vx = data.pose.linear_velocity.x
+            vy = data.pose.linear_velocity.y
+            # Use magnitude for actual vehicle speed (speedometer equivalent)
+            self.vehicle_state.ins_speed_mps = (vx**2 + vy**2)**0.5
         self.localization_received = True
 
     def _callback_chassis(self, data: chassis_pb2.Chassis):
@@ -324,6 +336,7 @@ class AdvancedDataCollector:
         self.vehicle_state = VehicleState(
             timestamp=data.header.timestamp_sec,
             speed_mps=data.speed_mps,
+            ins_speed_mps=self.vehicle_state.ins_speed_mps,
             imu_accel_y=self.vehicle_state.imu_accel_y,
             driving_mode=data.driving_mode,
             actual_gear=data.gear_location,
@@ -340,7 +353,7 @@ class AdvancedDataCollector:
         vs = self.vehicle_state
         cs = self.last_sent_control
         self.output_file.write(
-            f"{vs.timestamp:.4f},{vs.speed_mps:.4f},{vs.imu_accel_y:.4f},"
+            f"{vs.timestamp:.4f},{vs.speed_mps:.4f},{vs.ins_speed_mps:.4f},{vs.imu_accel_y:.4f},"
             f"{vs.driving_mode},{vs.actual_gear},{vs.throttle_pct:.2f},"
             f"{vs.brake_pct:.2f},{cs.throttle:.2f},{cs.brake:.2f}\n")
 
@@ -368,13 +381,14 @@ def main():
     parser.add_argument(
         "--auto-start",
         action="store_true",
-        help="Start each case automatically without interactive prompt."
-    )
+        help="Start each case automatically without interactive prompt.")
     args = parser.parse_args()
 
     cyber.init()
     node = cyber.Node("advanced_calibration_collector")
-    collector = AdvancedDataCollector(node, output_dir=args.output_dir, auto_start=args.auto_start)
+    collector = AdvancedDataCollector(node,
+                                      output_dir=args.output_dir,
+                                      auto_start=args.auto_start)
 
     # --- Robust shutdown handler ---
     def shutdown_handler(signum, frame):
