@@ -76,6 +76,7 @@ class AdvancedDataCollector:
         self.output_file = None
         self.sequence_num = 0
         self.abort_signal_received = False
+        self.trigger_met_time = None  # Track when trigger condition was met
 
         time.sleep(0.5)
 
@@ -164,6 +165,7 @@ class AdvancedDataCollector:
         """Manage the lifecycle of a single data collection case"""
         self.active_case = case_config
         self.active_step_idx = 0
+        self.trigger_met_time = None  # Reset trigger time for new case
 
         if not self._prepare_output_file(case_config['case_name']):
             return
@@ -260,16 +262,40 @@ class AdvancedDataCollector:
             trigger_met = True
 
         if trigger_met:
-            sys.stdout.write("\r" + " " * 80 + "\r")  # Clear status line
-            print(f"INFO: Trigger met at speed {speed:.2f} m/s.")
-            if self.active_step_idx + 1 < len(self.active_case['steps']):
-                self.active_step_idx += 1
-                self.step_start_time = time.time()
-                print(f"      Entering step {self.active_step_idx + 1}...")
+            if self.trigger_met_time is None:
+                # First time trigger is met
+                self.trigger_met_time = time.time()
+                hold_duration_ms = current_step.get('hold_duration_ms', 0)
+                if hold_duration_ms > 0:
+                    sys.stdout.write("\r" + " " * 80 + "\r")
+                    print(
+                        f"INFO: Trigger met at speed {speed:.2f} m/s, holding for {hold_duration_ms}ms..."
+                    )
             else:
-                self.is_collecting = False
-                self._send_control_command(default=True)
-                return
+                # Trigger was already met, check if hold duration has passed
+                hold_duration_ms = current_step.get('hold_duration_ms', 0)
+                hold_duration_sec = hold_duration_ms / 1000.0
+
+                if time.time() - self.trigger_met_time >= hold_duration_sec:
+                    # Hold duration complete, transition to next step
+                    sys.stdout.write("\r" + " " * 80 + "\r")
+                    print(f"INFO: Hold complete at speed {speed:.2f} m/s.")
+                    if self.active_step_idx + 1 < len(
+                            self.active_case['steps']):
+                        self.active_step_idx += 1
+                        self.step_start_time = time.time()
+                        self.trigger_met_time = None  # Reset for next step
+                        print(
+                            f"      Entering step {self.active_step_idx + 1}..."
+                        )
+                    else:
+                        self.is_collecting = False
+                        self._send_control_command(default=True)
+                        return
+        else:
+            # Trigger condition not met, reset trigger time if it was set
+            # (in case speed drops below threshold after being met)
+            pass
 
         # Publish current step command
         self._send_control_command(command_dict=current_step['command'])

@@ -134,6 +134,7 @@ class DataCore:
         cmd_min, cmd_max = self.processed_df['command'].min(), self.processed_df['command'].max()
         speed_max = self.processed_df['final_speed'].max()
 
+        # Generate speed grid - don't exceed data range
         speed_grid = np.arange(0, speed_max, self.config.speed_resolution)
         command_grid = np.arange(cmd_min, cmd_max + self.config.command_resolution, self.config.command_resolution)
         grid_x, grid_y = np.meshgrid(speed_grid, command_grid)
@@ -143,8 +144,38 @@ class DataCore:
         # In case some edges are still nan because interpolation convex hull missing
         grid_z = np.nan_to_num(grid_z)
 
-        # Enforce physical constraints / monotonicity
+        # Extrapolation: For throttle (positive commands), fill missing values using nearest available speed
         zero_cmd_idx = np.argmin(np.abs(command_grid))
+
+        # Process each command (row) separately
+        for i in range(len(command_grid)):
+            row = grid_z[i, :]
+
+            # Find indices of non-zero values in this row
+            non_zero_indices = np.where(row != 0)[0]
+
+            if len(non_zero_indices) == 0:
+                # Entire row is zero - skip for now, will be handled by monotonicity enforcement
+                continue
+
+            # Fill leading zeros with first non-zero value
+            if non_zero_indices[0] > 0:
+                row[:non_zero_indices[0]] = row[non_zero_indices[0]]
+
+            # Fill trailing zeros with last non-zero value
+            if non_zero_indices[-1] < len(row) - 1:
+                row[non_zero_indices[-1]+1:] = row[non_zero_indices[-1]]
+
+            # Fill gaps between non-zero values with linear interpolation
+            for k in range(len(non_zero_indices) - 1):
+                idx1, idx2 = non_zero_indices[k], non_zero_indices[k + 1]
+                if idx2 - idx1 > 1:
+                    # Linear interpolation between the two points
+                    row[idx1+1:idx2] = np.linspace(row[idx1], row[idx2], idx2 - idx1 + 1)[1:-1]
+
+            grid_z[i, :] = row
+
+        # Enforce physical constraints / monotonicity
         grid_z[zero_cmd_idx, :] = 0.0
 
         for i in range(zero_cmd_idx + 1, len(command_grid)):
@@ -154,8 +185,6 @@ class DataCore:
         for i in range(zero_cmd_idx - 1, -1, -1):
             grid_z[i, :] = np.minimum(grid_z[i, :], grid_z[i + 1, :])
             grid_z[i, :] = np.minimum(grid_z[i, :], 0.0)
-
-        # Optional extra 1D smoothing along command axis could be added here
 
         return speed_grid, command_grid, grid_z
 
@@ -195,15 +224,32 @@ class DataCore:
             # Apply the mask
             file_df_filtered = file_df[mask_keep].copy()
 
-            # For throttle: also filter out very low speeds
+            # For throttle: filter by speed range (min and max)
             throttle_data = file_df_filtered[file_df_filtered['command'] > 0].copy()
             if len(throttle_data) > 0:
-                throttle_data = throttle_data[throttle_data['final_speed'] >= self.config.min_throttle_speed_mps]
+                # Apply speed range filter
+                min_speed = self.config.min_throttle_speed_mps
+                max_speed = self.config.max_throttle_speed_mps
+                throttle_data = throttle_data[
+                    (throttle_data['final_speed'] >= min_speed) &
+                    (throttle_data['final_speed'] <= max_speed)
+                ]
 
-            # Keep non-throttle data as is
-            non_throttle_data = file_df_filtered[file_df_filtered['command'] <= 0].copy()
+            # For brake: filter by speed range (min and max)
+            brake_data = file_df_filtered[file_df_filtered['command'] < 0].copy()
+            if len(brake_data) > 0:
+                # Apply speed range filter
+                min_speed = self.config.min_brake_speed_mps
+                max_speed = self.config.max_brake_speed_mps
+                brake_data = brake_data[
+                    (brake_data['final_speed'] >= min_speed) &
+                    (brake_data['final_speed'] <= max_speed)
+                ]
 
-            filtered_dfs.append(pd.concat([throttle_data, non_throttle_data], ignore_index=True))
+            # Keep zero command data as is
+            zero_data = file_df_filtered[file_df_filtered['command'] == 0].copy()
+
+            filtered_dfs.append(pd.concat([throttle_data, brake_data, zero_data], ignore_index=True))
 
         if filtered_dfs:
             result = pd.concat(filtered_dfs, ignore_index=True)

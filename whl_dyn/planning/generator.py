@@ -21,7 +21,8 @@ def generate_calibration_plan(args):
                     {
                         'command': {'throttle': float(throttle), 'brake': 0.0},
                         'trigger': {'type': 'speed_greater_than', 'value': float(speed_target)},
-                        'timeout_sec': args.accel_timeout
+                        'timeout_sec': args.accel_timeout,
+                        'hold_duration_ms': args.hold_duration_ms
                     },
                     {
                         'command': {'throttle': 0.0, 'brake': args.default_brake},
@@ -50,7 +51,8 @@ def generate_calibration_plan(args):
                 {
                     'command': {'throttle': 80.0, 'brake': 0.0}, # A strong throttle to get to speed quickly
                     'trigger': {'type': 'speed_greater_than', 'value': float(initial_speed_target)},
-                    'timeout_sec': args.accel_timeout
+                    'timeout_sec': args.accel_timeout,
+                    'hold_duration_ms': args.hold_duration_ms
                 },
                 {
                     'command': {'throttle': 0.0, 'brake': float(brake)},
@@ -86,6 +88,7 @@ if __name__ == "__main__":
     # Test dynamics parameters
     parser.add_argument('--speed-targets', nargs='+', type=float, default=[1.0, 3.0, 5.0], help="List of target speeds (m/s) for acceleration tests.")
     parser.add_argument('--default-brake', type=float, default=30.0, help="Default brake command (%) used to stop the vehicle after a test step.")
+    parser.add_argument('--hold-duration-ms', type=int, default=0, help="Hold duration (ms) after trigger condition is met before switching to next step.")
 
     # Safety and timeout
     parser.add_argument('--accel-timeout', type=float, default=30.0, help="Timeout in seconds for acceleration steps.")

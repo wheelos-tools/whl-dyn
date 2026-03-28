@@ -31,5 +31,9 @@ class CalibrationConfig:
     # Time to discard after command switch to avoid transient state
     throttle_stability_window_ms: int = 200
     brake_stability_window_ms: int = 300
-    # Minimum speed for throttle data (discard data at very low speeds)
-    min_throttle_speed_mps: float = 0.5
+    # Speed range for throttle data filtering
+    min_throttle_speed_mps: float = 0.0
+    max_throttle_speed_mps: float = 5.0
+    # Speed range for brake data filtering
+    min_brake_speed_mps: float = 0.0
+    max_brake_speed_mps: float = 5.0

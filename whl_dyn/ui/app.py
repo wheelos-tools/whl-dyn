@@ -629,6 +629,7 @@ with plan_tab:
     with col3:
         speed_targets = st.text_input("Speed targets (m/s, comma)", "1.0,2.0")
         default_brake = st.number_input("Default stop brake (%)", 0.0, 100.0, 30.0)
+        hold_duration = st.number_input("Hold after trigger (ms)", 0, 5000, 0, help="触发条件满足后保持时间(毫秒), 0表示立即切换")
 
     plan_path_text = st.text_input("Plan file", value=plan_default)
     plan_path = resolve_path(plan_path_text)
@@ -645,6 +646,7 @@ with plan_tab:
             brake_num_steps=int(b_steps),
             speed_targets=targets,
             default_brake=float(default_brake),
+            hold_duration_ms=int(hold_duration),
             accel_timeout=30.0,
             decel_timeout=30.0,
         )
@@ -797,7 +799,23 @@ with analysis_tab:
         with p_stab2:
             config.brake_stability_window_ms = st.number_input("刹车稳定窗口(ms)", 0, 1000, 300, help="命令切换后丢弃的时间窗口(毫秒)")
 
-        config.min_throttle_speed_mps = st.slider("油门最小速度(m/s)", 0.0, 2.0, 0.5, 0.1, help="低于此速度的油门数据将被丢弃")
+        # 速度范围过滤：双滑块分别控制油门和刹车
+        st.markdown("**速度范围过滤**")
+        throttle_min, throttle_max = st.slider(
+            "油门速度范围(m/s)",
+            0.0, 10.0, (0.0, 5.0),
+            help="油门数据的速度过滤范围：低于最小值或高于最大值的数据将被丢弃"
+        )
+        config.min_throttle_speed_mps = throttle_min
+        config.max_throttle_speed_mps = throttle_max
+
+        brake_min, brake_max = st.slider(
+            "刹车速度范围(m/s)",
+            0.0, 10.0, (0.0, 5.0),
+            help="刹车数据的速度过滤范围：低于最小值或高于最大值的数据将被丢弃"
+        )
+        config.min_brake_speed_mps = brake_min
+        config.max_brake_speed_mps = brake_max
 
         config.lowpass_cutoff = st.slider("Filter Hz", 0.1, 5.0, 1.0, 0.1, help="低通滤波截止频率: 去除高频噪声,越小越平滑")
 
