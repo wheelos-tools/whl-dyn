@@ -88,41 +88,62 @@ class DataCore:
         # 2.5 Stability window filtering (remove transient state after command switch)
         df_clean = self._apply_stability_filter(df_clean)
 
-        # 3. LOF
+        # 3. LOF - per file and per command segment
         if self.config.enable_lof:
-            df_t = df_clean[df_clean['command'] > 0].copy()
-            df_b = df_clean[df_clean['command'] < 0].copy()
-            df_z = df_clean[df_clean['command'] == 0].copy()
+            # Group by source file, then split by command changes within each file
+            filtered_segments = []
+            features = ['final_speed', 'command', 'accel_aligned']
 
-            if len(df_t) >= self.config.lof_neighbors:
-                lof_t = LocalOutlierFactor(
-                    n_neighbors=self.config.lof_neighbors,
-                    contamination=self.config.lof_contamination)
-                mask_t = lof_t.fit_predict(df_t[features])
-                df_t['is_outlier'] = (mask_t == -1)
-                df_t = df_t[df_t['is_outlier'] == False]
-            if len(df_b) >= self.config.lof_neighbors:
-                lof_b = LocalOutlierFactor(
-                    n_neighbors=self.config.lof_neighbors,
-                    contamination=self.config.lof_contamination)
-                mask_b = lof_b.fit_predict(df_b[features])
-                df_b['is_outlier'] = (mask_b == -1)
-                df_b = df_b[df_b['is_outlier'] == False]
+            for source_file in df_clean['source_file'].unique():
+                file_df = df_clean[df_clean['source_file'] == source_file].copy()
 
-            self.processed_df = pd.concat([df_t, df_b, df_z], ignore_index=True)
-        else:
-            self.processed_df = df_clean
+                if len(file_df) == 0:
+                    continue
 
-        if self.processed_df is not None and not self.processed_df.empty:
-            if 'aligned_speed' not in self.processed_df.columns:
-                self.processed_df['aligned_speed'] = self.processed_df['final_speed']
-            if 'is_outlier' not in self.processed_df.columns:
-                self.processed_df['is_outlier'] = False
-            if 'command_type' not in self.processed_df.columns:
-                self.processed_df['command_type'] = np.where(
-                    self.processed_df['command'] > 0,
-                    'throttle',
-                    np.where(self.processed_df['command'] < 0, 'brake', 'coast'))
+                # Reset index to detect command changes
+                file_df = file_df.reset_index(drop=True)
+                file_df['command_changed'] = file_df['command'].diff().abs() > 1e-6
+
+                # Split into segments at command change points
+                segment_start = 0
+                for idx in file_df[file_df['command_changed']].index:
+                    segment = file_df.loc[segment_start:idx-1].copy()
+                    if len(segment) >= self.config.lof_neighbors:
+                        # Apply LOF to this segment
+                        segment_data = segment[features].values
+                        lof = LocalOutlierFactor(
+                            n_neighbors=self.config.lof_neighbors,
+                            contamination=self.config.lof_contamination)
+                        mask = lof.fit_predict(segment_data)
+                        segment['is_outlier'] = (mask == -1)
+                        # Keep only inliers
+                        segment = segment[segment['is_outlier'] == False]
+
+                    if len(segment) > 0:
+                        filtered_segments.append(segment)
+                    segment_start = idx
+
+                # Don't forget the last segment
+                last_segment = file_df.loc[segment_start:].copy()
+                if len(last_segment) >= self.config.lof_neighbors:
+                    segment_data = last_segment[features].values
+                    lof = LocalOutlierFactor(
+                        n_neighbors=self.config.lof_neighbors,
+                        contamination=self.config.lof_contamination)
+                    mask = lof.fit_predict(segment_data)
+                    last_segment['is_outlier'] = (mask == -1)
+                    last_segment = last_segment[last_segment['is_outlier'] == False]
+
+                if len(last_segment) > 0:
+                    filtered_segments.append(last_segment)
+
+            if filtered_segments:
+                df_clean = pd.concat(filtered_segments, ignore_index=True)
+                # Drop temporary columns
+                if 'command_changed' in df_clean.columns:
+                    df_clean = df_clean.drop(columns=['command_changed'])
+
+        self.processed_df = df_clean
 
     def build_calibration_table(self):
         """Generate monotonically enforced lookup table grid."""
