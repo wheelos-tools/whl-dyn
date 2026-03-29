@@ -4,23 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "whl-dyn"
-version = "0.1.0"
-description = "A dynamic vehicle control automation tool"
+version = "0.2.0"
+description = "Vehicle longitudinal dynamics calibration pipeline"
 authors = [
-    { name="Your Name", email="your.email@example.com" }
+    { name="wheelos-tools" }
 ]
 readme = "README.md"
-license = { text = "MIT" }
+license = {text = "Apache-2.0"}
 requires-python = ">=3.7"
 dependencies = [
-    "matplotlib",
     "numpy",
-    # add other required packages here
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "pyyaml",
+    "matplotlib",
+    "plotly",
+    "streamlit",
 ]
 
 [project.urls]
-Homepage = "https://example.com/whl-dyn"
-Repository = "https://github.com/yourusername/whl-dyn"
+Repository = "https://github.com/wheelos-tools/whl-dyn"
+
+[project.scripts]
+whl-dyn = "whl_dyn.cli:main"
 
 [tool.setuptools]
-packages = ["whl_dyn"]
+
+[tool.setuptools.packages.find]
+include = ["whl_dyn*"]

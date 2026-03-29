@@ -29,6 +29,7 @@ class VehicleState:
     """Snapshot of all relevant vehicle data at a point in time"""
     timestamp: float = 0.0
     speed_mps: float = 0.0
+    ins_speed_mps: float = 0.0
     imu_accel_y: float = 0.0
     driving_mode: int = 0
     actual_gear: int = 0
@@ -49,12 +50,16 @@ class ControlState:
 class AdvancedDataCollector:
     """Ensures data quality and automation by executing calibration plans"""
 
-    def __init__(self, node, output_dir="./calibration_data_logs"):
+    def __init__(self,
+                 node,
+                 output_dir="./calibration_data_logs",
+                 auto_start=False):
         """Initialization"""
         self.node = node
         self.control_pub = node.create_writer('/apollo/control',
                                               control_cmd_pb2.ControlCommand)
         self.output_dir = output_dir
+        self.auto_start = auto_start
 
         # State management variables
         self.vehicle_state = VehicleState()
@@ -71,6 +76,7 @@ class AdvancedDataCollector:
         self.output_file = None
         self.sequence_num = 0
         self.abort_signal_received = False
+        self.trigger_met_time = None  # Track when trigger condition was met
 
         time.sleep(0.5)
 
@@ -140,13 +146,16 @@ class AdvancedDataCollector:
             print(
                 f"      Description: {case_config.get('description', 'N/A')}")
 
-            user_input = input(
-                "      Press Enter to start, 's' to skip, 'q' to quit: "
-            ).lower()
-            if user_input == 's':
-                continue
-            if user_input == 'q':
-                break
+            if not self.auto_start:
+                user_input = input(
+                    "      Press Enter to start, 's' to skip, 'q' to quit: "
+                ).lower()
+                if user_input == 's':
+                    continue
+                if user_input == 'q':
+                    break
+            else:
+                print("INFO: Auto-start enabled, executing case immediately.")
 
             self._execute_case(case_config)
 
@@ -156,6 +165,7 @@ class AdvancedDataCollector:
         """Manage the lifecycle of a single data collection case"""
         self.active_case = case_config
         self.active_step_idx = 0
+        self.trigger_met_time = None  # Reset trigger time for new case
 
         if not self._prepare_output_file(case_config['case_name']):
             return
@@ -208,7 +218,7 @@ class AdvancedDataCollector:
     def _write_header(self):
         """Write CSV file header"""
         self.output_file.write(
-            "time,speed_mps,imu_accel_y,driving_mode,actual_gear,"
+            "time,speed_mps,ins_speed_mps,imu_accel_y,driving_mode,actual_gear,"
             "throttle_pct,brake_pct,ctl_throttle,ctl_brake\n")
 
     def _print_live_status(self):
@@ -252,16 +262,40 @@ class AdvancedDataCollector:
             trigger_met = True
 
         if trigger_met:
-            sys.stdout.write("\r" + " " * 80 + "\r")  # Clear status line
-            print(f"INFO: Trigger met at speed {speed:.2f} m/s.")
-            if self.active_step_idx + 1 < len(self.active_case['steps']):
-                self.active_step_idx += 1
-                self.step_start_time = time.time()
-                print(f"      Entering step {self.active_step_idx + 1}...")
+            if self.trigger_met_time is None:
+                # First time trigger is met
+                self.trigger_met_time = time.time()
+                hold_duration_ms = current_step.get('hold_duration_ms', 0)
+                if hold_duration_ms > 0:
+                    sys.stdout.write("\r" + " " * 80 + "\r")
+                    print(
+                        f"INFO: Trigger met at speed {speed:.2f} m/s, holding for {hold_duration_ms}ms..."
+                    )
             else:
-                self.is_collecting = False
-                self._send_control_command(default=True)
-                return
+                # Trigger was already met, check if hold duration has passed
+                hold_duration_ms = current_step.get('hold_duration_ms', 0)
+                hold_duration_sec = hold_duration_ms / 1000.0
+
+                if time.time() - self.trigger_met_time >= hold_duration_sec:
+                    # Hold duration complete, transition to next step
+                    sys.stdout.write("\r" + " " * 80 + "\r")
+                    print(f"INFO: Hold complete at speed {speed:.2f} m/s.")
+                    if self.active_step_idx + 1 < len(
+                            self.active_case['steps']):
+                        self.active_step_idx += 1
+                        self.step_start_time = time.time()
+                        self.trigger_met_time = None  # Reset for next step
+                        print(
+                            f"      Entering step {self.active_step_idx + 1}..."
+                        )
+                    else:
+                        self.is_collecting = False
+                        self._send_control_command(default=True)
+                        return
+        else:
+            # Trigger condition not met, reset trigger time if it was set
+            # (in case speed drops below threshold after being met)
+            pass
 
         # Publish current step command
         self._send_control_command(command_dict=current_step['command'])
@@ -313,6 +347,14 @@ class AdvancedDataCollector:
                                data: localization_pb2.LocalizationEstimate):
         """Handle localization messages"""
         self.vehicle_state.imu_accel_y = data.pose.linear_acceleration_vrf.y
+        # Note: linear_velocity_vrf field does NOT exist in localization protobuf
+        # Calculate speed from linear_velocity (map reference frame)
+        if (hasattr(data.pose, 'linear_velocity')
+                and data.pose.HasField('linear_velocity')):
+            vx = data.pose.linear_velocity.x
+            vy = data.pose.linear_velocity.y
+            # Use magnitude for actual vehicle speed (speedometer equivalent)
+            self.vehicle_state.ins_speed_mps = (vx**2 + vy**2)**0.5
         self.localization_received = True
 
     def _callback_chassis(self, data: chassis_pb2.Chassis):
@@ -320,6 +362,7 @@ class AdvancedDataCollector:
         self.vehicle_state = VehicleState(
             timestamp=data.header.timestamp_sec,
             speed_mps=data.speed_mps,
+            ins_speed_mps=self.vehicle_state.ins_speed_mps,
             imu_accel_y=self.vehicle_state.imu_accel_y,
             driving_mode=data.driving_mode,
             actual_gear=data.gear_location,
@@ -336,7 +379,7 @@ class AdvancedDataCollector:
         vs = self.vehicle_state
         cs = self.last_sent_control
         self.output_file.write(
-            f"{vs.timestamp:.4f},{vs.speed_mps:.4f},{vs.imu_accel_y:.4f},"
+            f"{vs.timestamp:.4f},{vs.speed_mps:.4f},{vs.ins_speed_mps:.4f},{vs.imu_accel_y:.4f},"
             f"{vs.driving_mode},{vs.actual_gear},{vs.throttle_pct:.2f},"
             f"{vs.brake_pct:.2f},{cs.throttle:.2f},{cs.brake:.2f}\n")
 
@@ -361,11 +404,17 @@ def main():
         help=
         "Output directory for collected data files (default: ./calibration_data_logs)"
     )
+    parser.add_argument(
+        "--auto-start",
+        action="store_true",
+        help="Start each case automatically without interactive prompt.")
     args = parser.parse_args()
 
     cyber.init()
     node = cyber.Node("advanced_calibration_collector")
-    collector = AdvancedDataCollector(node, output_dir=args.output_dir)
+    collector = AdvancedDataCollector(node,
+                                      output_dir=args.output_dir,
+                                      auto_start=args.auto_start)
 
     # --- Robust shutdown handler ---
     def shutdown_handler(signum, frame):
