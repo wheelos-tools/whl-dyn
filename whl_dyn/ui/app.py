@@ -37,13 +37,17 @@ def init_state():
     st.session_state.setdefault("case_state", {})
 
     # 确保输出目录字段有默认值
-    if "collect_output_dir" not in st.session_state or not st.session_state["collect_output_dir"]:
+    if (
+        "collect_output_dir" not in st.session_state
+        or not st.session_state["collect_output_dir"]
+    ):
         st.session_state["collect_output_dir"] = output_default()
 
     # 从输出目录恢复case状态
     output_dir = Path(st.session_state.get("output_dir", output_default()))
     if output_dir.exists():
         import glob
+
         csv_files = glob.glob(str(output_dir / "*.csv"))
         for csv_file in csv_files:
             csv_path = Path(csv_file)
@@ -51,15 +55,18 @@ def init_state():
             case_name = "_".join(csv_path.stem.split("_")[:-1])  # 去掉最后的序号
             if case_name and case_name not in st.session_state.case_state:
                 # 文件存在说明case已完成
-                st.session_state.case_state.setdefault(case_name, {
-                    "status": "completed",
-                    "retry": 0,
-                    "manual_confirmed": False,
-                    "last_check": "ok",
-                    "last_file": csv_path.name,
-                    "rows": 0,  # 行数稍后可以读取CSV获取
-                    "returncode": 0,
-                })
+                st.session_state.case_state.setdefault(
+                    case_name,
+                    {
+                        "status": "completed",
+                        "retry": 0,
+                        "manual_confirmed": False,
+                        "last_check": "ok",
+                        "last_file": csv_path.name,
+                        "rows": 0,  # 行数稍后可以读取CSV获取
+                        "returncode": 0,
+                    },
+                )
 
     st.session_state.setdefault(
         "collector_runtime",
@@ -91,7 +98,9 @@ def load_plan(plan_path: Path):
 def save_single_case_plan(case: dict, case_name: str) -> Path:
     temp_plan_path = RUNTIME_DIR / f"{case_name}.yaml"
     with open(temp_plan_path, "w", encoding="utf-8") as f:
-        yaml.safe_dump([case], f, sort_keys=False, default_flow_style=False, allow_unicode=True)
+        yaml.safe_dump(
+            [case], f, sort_keys=False, default_flow_style=False, allow_unicode=True
+        )
     return temp_plan_path
 
 
@@ -100,7 +109,13 @@ def parse_case_summary(case: dict) -> dict:
     steps = case.get("steps", [])
     cmd0 = steps[0].get("command", {}) if steps else {}
     trg0 = steps[0].get("trigger", {}) if steps else {}
-    case_type = "throttle" if name.startswith("throttle_") else "brake" if name.startswith("brake_") else "mixed"
+    case_type = (
+        "throttle"
+        if name.startswith("throttle_")
+        else "brake"
+        if name.startswith("brake_")
+        else "mixed"
+    )
     return {
         "case_name": name,
         "type": case_type,
@@ -113,7 +128,15 @@ def parse_case_summary(case: dict) -> dict:
 
 
 def build_plan_df(plan: list) -> pd.DataFrame:
-    columns = ["case_name", "type", "step_count", "cmd_throttle", "cmd_brake", "trigger", "trigger_value"]
+    columns = [
+        "case_name",
+        "type",
+        "step_count",
+        "cmd_throttle",
+        "cmd_brake",
+        "trigger",
+        "trigger_value",
+    ]
     if not plan:
         return pd.DataFrame(columns=columns)
     return pd.DataFrame([parse_case_summary(case) for case in plan], columns=columns)
@@ -148,6 +171,7 @@ def restore_case_state_from_files(output_dir: Path, case_name: str):
 
     # 查找所有匹配的CSV文件
     import glob
+
     case_files = glob.glob(str(output_dir / f"{case_name}_*.csv"))
 
     if not case_files:
@@ -172,33 +196,81 @@ def restore_case_state_from_files(output_dir: Path, case_name: str):
 
 
 def find_case_logs(output_dir: Path, case_name: str):
-    return sorted(output_dir.glob(f"{case_name}_*.csv"), key=lambda path: path.stat().st_mtime)
+    return sorted(
+        output_dir.glob(f"{case_name}_*.csv"), key=lambda path: path.stat().st_mtime
+    )
 
 
 def check_csv_sanity(csv_path: Optional[Path]) -> dict:
     if csv_path is None or not csv_path.exists():
-        return {"ok": False, "reason": "no_log", "rows": 0, "speed_span": 0.0, "command_span": 0.0}
+        return {
+            "ok": False,
+            "reason": "no_log",
+            "rows": 0,
+            "speed_span": 0.0,
+            "command_span": 0.0,
+        }
 
     try:
         df = pd.read_csv(csv_path)
     except Exception as exc:
-        return {"ok": False, "reason": f"read_failed: {exc}", "rows": 0, "speed_span": 0.0, "command_span": 0.0}
+        return {
+            "ok": False,
+            "reason": f"read_failed: {exc}",
+            "rows": 0,
+            "speed_span": 0.0,
+            "command_span": 0.0,
+        }
 
     required_cols = {"time", "speed_mps", "imu_accel_y", "ctl_throttle", "ctl_brake"}
     if not required_cols.issubset(df.columns):
-        return {"ok": False, "reason": "missing_required_columns", "rows": int(len(df)), "speed_span": 0.0, "command_span": 0.0}
+        return {
+            "ok": False,
+            "reason": "missing_required_columns",
+            "rows": int(len(df)),
+            "speed_span": 0.0,
+            "command_span": 0.0,
+        }
 
-    speed_span = float(df["speed_mps"].max() - df["speed_mps"].min()) if len(df) else 0.0
-    command_span = float((df["ctl_throttle"] - df["ctl_brake"]).abs().max()) if len(df) else 0.0
+    speed_span = (
+        float(df["speed_mps"].max() - df["speed_mps"].min()) if len(df) else 0.0
+    )
+    command_span = (
+        float((df["ctl_throttle"] - df["ctl_brake"]).abs().max()) if len(df) else 0.0
+    )
 
     if len(df) < 50:
-        return {"ok": False, "reason": "too_few_rows", "rows": int(len(df)), "speed_span": speed_span, "command_span": command_span}
+        return {
+            "ok": False,
+            "reason": "too_few_rows",
+            "rows": int(len(df)),
+            "speed_span": speed_span,
+            "command_span": command_span,
+        }
     if speed_span < 0.3:
-        return {"ok": False, "reason": "speed_span_too_small", "rows": int(len(df)), "speed_span": speed_span, "command_span": command_span}
+        return {
+            "ok": False,
+            "reason": "speed_span_too_small",
+            "rows": int(len(df)),
+            "speed_span": speed_span,
+            "command_span": command_span,
+        }
     if command_span < 5.0:
-        return {"ok": False, "reason": "command_span_too_small", "rows": int(len(df)), "speed_span": speed_span, "command_span": command_span}
+        return {
+            "ok": False,
+            "reason": "command_span_too_small",
+            "rows": int(len(df)),
+            "speed_span": speed_span,
+            "command_span": command_span,
+        }
 
-    return {"ok": True, "reason": "ok", "rows": int(len(df)), "speed_span": speed_span, "command_span": command_span}
+    return {
+        "ok": True,
+        "reason": "ok",
+        "rows": int(len(df)),
+        "speed_span": speed_span,
+        "command_span": command_span,
+    }
 
 
 def build_collector_command(plan_path: Path, output_dir: Path):
@@ -214,7 +286,9 @@ def build_collector_command(plan_path: Path, output_dir: Path):
     ]
 
 
-def start_collection(case: dict, output_dir: Path, mode: str, batch_cases=None, batch_index: int = 0):
+def start_collection(
+    case: dict, output_dir: Path, mode: str, batch_cases=None, batch_index: int = 0
+):
     runtime = st.session_state.collector_runtime
     case_name = case["case_name"]
     temp_plan = save_single_case_plan(case, case_name)
@@ -243,8 +317,15 @@ def start_collection(case: dict, output_dir: Path, mode: str, batch_cases=None, 
             "batch_done": False,
         }
     )
-    set_case_status(case_name, status="collecting", manual_confirmed=False, last_check="collecting", last_file="", rows=0, returncode=None)
-
+    set_case_status(
+        case_name,
+        status="collecting",
+        manual_confirmed=False,
+        last_check="collecting",
+        last_file="",
+        rows=0,
+        returncode=None,
+    )
 
 
 def stop_collection():
@@ -254,6 +335,7 @@ def stop_collection():
     # 发送SIGINT信号，让collector调用emergency_stop安全停止车辆
     if proc and proc.poll() is None:
         import signal
+
         try:
             proc.send_signal(signal.SIGINT)
             # 等待进程安全退出
@@ -275,8 +357,12 @@ def stop_collection():
     runtime["mode"] = "idle"
     active_case = runtime.get("active_case")
     if active_case:
-        set_case_status(active_case, status="stopped", last_check="stopped_by_user", returncode=runtime.get("last_returncode"))
-
+        set_case_status(
+            active_case,
+            status="stopped",
+            last_check="stopped_by_user",
+            returncode=runtime.get("last_returncode"),
+        )
 
 
 def drain_logs(proc, log_lines: List[str]):
@@ -290,7 +376,6 @@ def drain_logs(proc, log_lines: List[str]):
         if not line:
             break
         log_lines.append(line.rstrip())
-
 
 
 def finalize_current_case():
@@ -349,7 +434,6 @@ def finalize_current_case():
     runtime["awaiting_confirmation"] = bool(quality["ok"])
 
 
-
 def poll_runtime():
     runtime = st.session_state.collector_runtime
     proc = runtime.get("proc")
@@ -364,7 +448,6 @@ def poll_runtime():
     finalize_current_case()
     runtime["proc"] = None
     return False
-
 
 
 def approve_and_continue(plan_lookup: dict, plan_df=None):
@@ -398,8 +481,13 @@ def approve_and_continue(plan_lookup: dict, plan_df=None):
 
     next_case_name = batch_cases[next_index]
     next_case = plan_lookup[next_case_name]
-    start_collection(next_case, Path(runtime["output_dir"]), "batch", batch_cases=batch_cases, batch_index=next_index)
-
+    start_collection(
+        next_case,
+        Path(runtime["output_dir"]),
+        "batch",
+        batch_cases=batch_cases,
+        batch_index=next_index,
+    )
 
 
 def retry_current_case(plan_lookup: dict, group_idx: int = 0, selected_case=None):
@@ -460,9 +548,13 @@ def retry_current_case(plan_lookup: dict, group_idx: int = 0, selected_case=None
 
     # 重新开始采集
     case = plan_lookup[case_name]
-    start_collection(case, output_dir, runtime.get("mode", "single"),
-                    batch_cases=runtime.get("batch_cases", []),
-                    batch_index=runtime.get("batch_index", 0))
+    start_collection(
+        case,
+        output_dir,
+        runtime.get("mode", "single"),
+        batch_cases=runtime.get("batch_cases", []),
+        batch_index=runtime.get("batch_index", 0),
+    )
 
 
 def delete_current_group(output_dir: Path, case_name: str, group_idx: int):
@@ -472,6 +564,7 @@ def delete_current_group(output_dir: Path, case_name: str, group_idx: int):
 
     if output_dir.exists():
         import glob
+
         case_files = sorted(output_dir.glob(f"{case_name}_*.csv"))
         if 0 <= group_idx < len(case_files):
             file_to_delete = case_files[group_idx]
@@ -481,7 +574,9 @@ def delete_current_group(output_dir: Path, case_name: str, group_idx: int):
                 pass
 
     # 更新状态：如果没有文件了，重置case状态
-    case_files_after = list(output_dir.glob(f"{case_name}_*.csv")) if output_dir.exists() else []
+    case_files_after = (
+        list(output_dir.glob(f"{case_name}_*.csv")) if output_dir.exists() else []
+    )
     if not case_files_after:
         state = get_case_state(case_name)
         state["status"] = "pending"
@@ -498,7 +593,6 @@ def delete_current_group(output_dir: Path, case_name: str, group_idx: int):
     st.session_state[f"{case_name}_selected_group"] = new_idx
 
 
-
 def output_default() -> str:
     return str(PROJECT_ROOT / "calibration_data_logs")
 
@@ -512,99 +606,103 @@ def get_metric_rating(value: float, metric_type: str) -> dict:
     Get rating (grade 0-100, color, label) for a metric value.
     Returns position 0-100 for vertical scale marker.
     """
-    if metric_type == 'mae':
+    if metric_type == "mae":
         # MAE: 越小越好 (业界标准)
         if value < 0.10:
-            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+            return {"grade": 95, "color": "#00C853", "label": "优秀"}
         elif value < 0.20:
-            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+            return {"grade": 75, "color": "#64DD17", "label": "良好"}
         elif value < 0.35:
-            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+            return {"grade": 55, "color": "#FFD600", "label": "一般"}
         else:
-            return {'grade': 25, 'color': '#FF3D00', 'label': '需改进'}
+            return {"grade": 25, "color": "#FF3D00", "label": "需改进"}
 
-    elif metric_type == 'rmse':
+    elif metric_type == "rmse":
         if value < 0.15:
-            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+            return {"grade": 95, "color": "#00C853", "label": "优秀"}
         elif value < 0.30:
-            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+            return {"grade": 75, "color": "#64DD17", "label": "良好"}
         elif value < 0.50:
-            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+            return {"grade": 55, "color": "#FFD600", "label": "一般"}
         else:
-            return {'grade': 25, 'color': '#FF3D00', 'label': '需改进'}
+            return {"grade": 25, "color": "#FF3D00", "label": "需改进"}
 
-    elif metric_type == 'r2':
+    elif metric_type == "r2":
         # R²: 参考指标，非主要评价标准
         if value >= 0.90:
-            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+            return {"grade": 95, "color": "#00C853", "label": "优秀"}
         elif value >= 0.80:
-            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+            return {"grade": 75, "color": "#64DD17", "label": "良好"}
         elif value >= 0.70:
-            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+            return {"grade": 55, "color": "#FFD600", "label": "一般"}
         else:
-            return {'grade': 25, 'color': '#FF3D00', 'label': '需改进'}
+            return {"grade": 25, "color": "#FF3D00", "label": "需改进"}
 
-    elif metric_type == 'deadzone':
+    elif metric_type == "deadzone":
         if value < 5:
-            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+            return {"grade": 95, "color": "#00C853", "label": "优秀"}
         elif value < 10:
-            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+            return {"grade": 75, "color": "#64DD17", "label": "良好"}
         elif value < 15:
-            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+            return {"grade": 55, "color": "#FFD600", "label": "一般"}
         else:
-            return {'grade': 25, 'color': '#FF3D00', 'label': '偏大'}
+            return {"grade": 25, "color": "#FF3D00", "label": "偏大"}
 
-    elif metric_type == 'smoothness':
+    elif metric_type == "smoothness":
         if value >= 90:
-            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+            return {"grade": 95, "color": "#00C853", "label": "优秀"}
         elif value >= 75:
-            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+            return {"grade": 75, "color": "#64DD17", "label": "良好"}
         elif value >= 60:
-            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+            return {"grade": 55, "color": "#FFD600", "label": "一般"}
         else:
-            return {'grade': 25, 'color': '#FF3D00', 'label': '需改进'}
+            return {"grade": 25, "color": "#FF3D00", "label": "需改进"}
 
-    elif metric_type == 'tolerance_pct':
+    elif metric_type == "tolerance_pct":
         if value >= 90:
-            return {'grade': 95, 'color': '#00C853', 'label': '优秀'}
+            return {"grade": 95, "color": "#00C853", "label": "优秀"}
         elif value >= 80:
-            return {'grade': 75, 'color': '#64DD17', 'label': '良好'}
+            return {"grade": 75, "color": "#64DD17", "label": "良好"}
         elif value >= 70:
-            return {'grade': 55, 'color': '#FFD600', 'label': '一般'}
+            return {"grade": 55, "color": "#FFD600", "label": "一般"}
         else:
-            return {'grade': 25, 'color': '#FF3D00', 'label': '需改进'}
+            return {"grade": 25, "color": "#FF3D00", "label": "需改进"}
 
-    elif metric_type == 'monotonicity':
+    elif metric_type == "monotonicity":
         # 单调性违反次数：0为通过，>0为不通过
         if value == 0:
-            return {'grade': 95, 'color': '#00C853', 'label': '通过'}
+            return {"grade": 95, "color": "#00C853", "label": "通过"}
         else:
-            return {'grade': 25, 'color': '#FF3D00', 'label': '违反'}
+            return {"grade": 25, "color": "#FF3D00", "label": "违反"}
 
-    return {'grade': 0, 'color': '#9E9E9E', 'label': '未知'}
+    return {"grade": 0, "color": "#9E9E9E", "label": "未知"}
 
 
 def render_metric_compact(label: str, value: str, rating: dict, help_text: str = None):
     """Render a compact metric with color badge."""
     safe_label = html.escape(label)
     safe_value = html.escape(value)
-    safe_rating_label = html.escape(rating['label'])
-    help_attr = f' title="{html.escape(help_text, quote=True)}"' if help_text else ''
-    st.markdown(f"""
+    safe_rating_label = html.escape(rating["label"])
+    help_attr = f' title="{html.escape(help_text, quote=True)}"' if help_text else ""
+    st.markdown(
+        f"""
     <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
         <span style="font-size: 13px; color: #CCC;"{help_attr}>{safe_label}</span>
         <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 14px; font-weight: 600; color: {rating['color']};">{safe_value}</span>
-            <span style="font-size: 10px; padding: 2px 6px; border-radius: 3px; background: {rating['color']}; color: #000;">{safe_rating_label}</span>
+            <span style="font-size: 14px; font-weight: 600; color: {rating["color"]};">{safe_value}</span>
+            <span style="font-size: 10px; padding: 2px 6px; border-radius: 3px; background: {rating["color"]}; color: #000;">{safe_rating_label}</span>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_metrics_grid(metrics_data: list, columns: int = 3):
     """Render multiple metrics in a grid layout with hover tooltip showing vertical scale."""
     # 添加CSS样式
-    st.markdown("""
+    st.markdown(
+        """
     <style>
     .metric-container {
         position: relative;
@@ -695,7 +793,9 @@ def render_metrics_grid(metrics_data: list, columns: int = 3):
         font-style: italic;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     for i in range(0, len(metrics_data), columns):
         cols = st.columns(columns)
@@ -711,15 +811,15 @@ def render_metrics_grid(metrics_data: list, columns: int = 3):
                         help_text = None
 
                     # 计算marker位置 (grade 0-100，0在底部/差，100在顶部/优秀)
-                    marker_pos = max(2, min(98, rating['grade']))
+                    marker_pos = max(2, min(98, rating["grade"]))
 
                     # Build tooltip HTML without escaping (since values are controlled)
                     tooltip_html = f'<div class="tooltip-value">{value}</div>'
                     if help_text:
                         tooltip_html += f'<div class="tooltip-hint">{help_text}</div>'
-                    tooltip_html += f'''<div class="vertical-scale"><div class="scale-bar"><div class="scale-marker" style="bottom: {marker_pos}%;"></div></div><div class="scale-labels"><span>优秀</span><span>良好</span><span>一般</span><span>差</span></div></div>'''
+                    tooltip_html += f"""<div class="vertical-scale"><div class="scale-bar"><div class="scale-marker" style="bottom: {marker_pos}%;"></div></div><div class="scale-labels"><span>优秀</span><span>良好</span><span>一般</span><span>差</span></div></div>"""
 
-                    html_content = f'''<div class="metric-container"><div class="metric-name">{label}</div><div class="metric-value-row"><span class="metric-value" style="color: {rating['color']};">{value}</span><span style="font-size: 7px; padding: 1px 2px; border-radius: 2px; background: {rating['color']}; color: #000;">{rating['label']}</span></div><div class="metric-tooltip">{tooltip_html}</div></div>'''
+                    html_content = f"""<div class="metric-container"><div class="metric-name">{label}</div><div class="metric-value-row"><span class="metric-value" style="color: {rating["color"]};">{value}</span><span style="font-size: 7px; padding: 1px 2px; border-radius: 2px; background: {rating["color"]}; color: #000;">{rating["label"]}</span></div><div class="metric-tooltip">{tooltip_html}</div></div>"""
                     st.markdown(html_content, unsafe_allow_html=True)
 
 
@@ -748,7 +848,12 @@ def build_lookup_table_frames(speed_grid, command_grid, grid_z):
 
 def build_speed_slice_figure(speed_grid, command_grid, grid_z):
     fig = go.Figure()
-    if speed_grid is None or command_grid is None or grid_z is None or len(speed_grid) == 0:
+    if (
+        speed_grid is None
+        or command_grid is None
+        or grid_z is None
+        or len(speed_grid) == 0
+    ):
         return fig
 
     slice_count = min(5, len(speed_grid))
@@ -784,15 +889,20 @@ def load_and_process(config: CalibrationConfig, directory: str):
         return None, None, None, None, None, None
     core.process_signals()
     speed_grid, command_grid, grid_z = core.build_calibration_table()
-    metrics = MetricsEvaluator.evaluate(speed_grid, command_grid, grid_z, core.processed_df)
+    metrics = MetricsEvaluator.evaluate(
+        speed_grid, command_grid, grid_z, core.processed_df
+    )
     return core.unified_df, core.processed_df, speed_grid, command_grid, grid_z, metrics
 
 
 init_state()
-st.set_page_config(page_title="Chassis Dynamics Calibration", layout="wide", page_icon="🚗")
+st.set_page_config(
+    page_title="Chassis Dynamics Calibration", layout="wide", page_icon="🚗"
+)
 
 # 永久隐藏顶部菜单，节省空间
-st.markdown("""
+st.markdown(
+    """
 <style>
 /* 隐藏顶部菜单 */
 .stApp header {display: none !important;}
@@ -880,14 +990,17 @@ element-container {
     gap: 0.1rem !important;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 st.title("Chassis Dynamics Calibration Dashboard")
 
 plan_default = str(PROJECT_ROOT / "calibration_plan.yaml")
 
 # 主标签页自适应宽度
-st.markdown("""
+st.markdown(
+    """
 <style>
 .stTabs [data-baseweb="tab-list"] {
     gap: 0px;
@@ -899,23 +1012,30 @@ st.markdown("""
     justify-content: center;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-plan_tab, collect_tab, analysis_tab = st.tabs([
-    "📋 ① 生成计划",
-    "🚗 ② 数据采集",
-    "📊 ③ 分析",
-])
+plan_tab, collect_tab, analysis_tab = st.tabs(
+    [
+        "📋 ① 生成计划",
+        "🚗 ② 数据采集",
+        "📊 ③ 分析",
+    ]
+)
 
 with plan_tab:
     # 修复text_input label的margin-bottom对齐问题
-    st.markdown("""
+    st.markdown(
+        """
     <style>
     [data-testid="stTextInput"] label {
         margin-bottom: 0 !important;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     # 左侧参数网格，右侧操作区
     left_col, right_col = st.columns([2, 1])
@@ -946,12 +1066,19 @@ with plan_tab:
         with g3:
             default_brake = st.number_input("默认刹车 (%)", 0.0, 100.0, 30.0)
         with g4:
-            hold_duration = st.number_input("保持时间 (ms)", 0, 5000, 500,
-                                           help="触发条件满足后保持时间(毫秒), 0表示立即切换")
+            hold_duration = st.number_input(
+                "保持时间 (ms)",
+                0,
+                5000,
+                500,
+                help="触发条件满足后保持时间(毫秒), 0表示立即切换",
+            )
 
     with right_col:
         st.markdown("**操作**")
-        plan_path_text = st.text_input("计划文件路径", value=plan_default, label_visibility="collapsed")
+        plan_path_text = st.text_input(
+            "计划文件路径", value=plan_default, label_visibility="collapsed"
+        )
         st.write("")  # 添加间距
         if st.button("生成计划", type="primary"):
             plan_path = resolve_path(plan_path_text)
@@ -978,7 +1105,9 @@ with plan_tab:
     plan = load_plan(plan_path)
     plan_df = build_plan_df(plan)
 
-    view_mode = st.radio("视图模式", ["表格", "源码"], horizontal=True, label_visibility="collapsed")
+    view_mode = st.radio(
+        "视图模式", ["表格", "源码"], horizontal=True, label_visibility="collapsed"
+    )
     if view_mode == "表格":
         st.dataframe(plan_df, use_container_width=True)
     else:
@@ -993,7 +1122,9 @@ with collect_tab:
     # 顶部：文件路径
     top1, top2 = st.columns([1, 1])
     with top1:
-        plan_path_text = st.text_input("计划文件", value=plan_default, key="collect_plan")
+        plan_path_text = st.text_input(
+            "计划文件", value=plan_default, key="collect_plan"
+        )
     with top2:
         # 设置默认值，如果session state中有值就用，否则用默认值
         st.text_input("输出目录", key="collect_output_dir")
@@ -1015,7 +1146,11 @@ with collect_tab:
     plan_path = resolve_path(plan_path_text)
     # 确保输出目录不为空
     out_dir_text = st.session_state.get("collect_output_dir", output_default())
-    out_dir_resolved = resolve_path(out_dir_text) if out_dir_text.strip() else resolve_path(output_default())
+    out_dir_resolved = (
+        resolve_path(out_dir_text)
+        if out_dir_text.strip()
+        else resolve_path(output_default())
+    )
     output_dir = out_dir_resolved
     # 同步到session state，让其他地方也能使用
     st.session_state["output_dir"] = str(output_dir)
@@ -1064,7 +1199,12 @@ with collect_tab:
                     st.session_state["selected_case_idx"] = current_idx - 1
                     st.rerun()
             with select_col:
-                selected_case = st.selectbox("选择用例", case_list, index=current_idx, label_visibility="collapsed")
+                selected_case = st.selectbox(
+                    "选择用例",
+                    case_list,
+                    index=current_idx,
+                    label_visibility="collapsed",
+                )
                 # 更新索引
                 current_idx = case_list.index(selected_case)
                 st.session_state["selected_case_idx"] = current_idx
@@ -1103,6 +1243,7 @@ with collect_tab:
                 if output_dir.exists():
                     import glob
                     import pandas as pd
+
                     case_files = glob.glob(str(output_dir / f"{case_name}_*.csv"))
                     group_count = len(case_files)
                     # 计算所有组的总行数
@@ -1115,16 +1256,24 @@ with collect_tab:
 
                 row_class = f"row-{status}"
                 status_icon = "⏳"
-                if status == "completed" or status == "quality_pass" or status == "approved":
+                if (
+                    status == "completed"
+                    or status == "quality_pass"
+                    or status == "approved"
+                ):
                     status_icon = "✓"
                 elif status == "running":
                     status_icon = "▶"
-                elif status == "error" or status == "stopped" or status == "quality_fail":
+                elif (
+                    status == "error" or status == "stopped" or status == "quality_fail"
+                ):
                     status_icon = "✗"
                 elif status == "warning":
                     status_icon = "⚠"
 
-                case_name_short = case_name[:25] + "..." if len(case_name) > 25 else case_name
+                case_name_short = (
+                    case_name[:25] + "..." if len(case_name) > 25 else case_name
+                )
 
                 # 检查是否是当前选中的用例，添加高亮class
                 selected_class = " row-selected" if case_name == selected_case else ""
@@ -1153,19 +1302,32 @@ with collect_tab:
                 case_files = sorted(output_dir.glob(f"{active_case}_*.csv"))
                 # 如果有新文件，自动选择最新的
                 if case_files:
-                    current_idx = st.session_state.get(f"{active_case}_selected_group", len(case_files) - 1)
+                    current_idx = st.session_state.get(
+                        f"{active_case}_selected_group", len(case_files) - 1
+                    )
                     # 如果当前索引超出范围或者刚刚完成采集，选择最新的
-                    if current_idx >= len(case_files) or (not running and runtime.get("last_returncode") is not None):
-                        st.session_state[f"{active_case}_selected_group"] = len(case_files) - 1
+                    if current_idx >= len(case_files) or (
+                        not running and runtime.get("last_returncode") is not None
+                    ):
+                        st.session_state[f"{active_case}_selected_group"] = (
+                            len(case_files) - 1
+                        )
             else:
                 case_files = []
 
             if case_files:
-                file_options = [f"第 {i+1} 组" for i in range(len(case_files))]
-                selected_group_idx = st.session_state.get(f"{active_case}_selected_group", len(case_files) - 1)
+                file_options = [f"第 {i + 1} 组" for i in range(len(case_files))]
+                selected_group_idx = st.session_state.get(
+                    f"{active_case}_selected_group", len(case_files) - 1
+                )
                 selected_group_idx = min(selected_group_idx, len(case_files) - 1)
                 # selectbox返回的是值，不是索引，所以这里我们保存索引
-                selected_label = st.selectbox("组", file_options, index=selected_group_idx, label_visibility="collapsed")
+                selected_label = st.selectbox(
+                    "组",
+                    file_options,
+                    index=selected_group_idx,
+                    label_visibility="collapsed",
+                )
                 group_idx = file_options.index(selected_label)  # 从值获取索引
                 st.session_state[f"{active_case}_selected_group"] = group_idx
             else:
@@ -1176,6 +1338,7 @@ with collect_tab:
             selected_file = case_files[group_idx]
             try:
                 import pandas as pd
+
                 df = pd.read_csv(selected_file)
                 rows_count = len(df)
                 file_name = selected_file.name
@@ -1184,11 +1347,11 @@ with collect_tab:
                 file_name = selected_file.name
         else:
             rows_count = 0
-            file_name = 'N/A'
+            file_name = "N/A"
             if active_case:
                 active_state = get_case_state(active_case)
-                rows_count = active_state['rows']
-                file_name = active_state['last_file'] or 'N/A'
+                rows_count = active_state["rows"]
+                file_name = active_state["last_file"] or "N/A"
 
         # 状态信息第一行（3列）
         col1, col2, col3 = st.columns(3)
@@ -1204,7 +1367,7 @@ with collect_tab:
             else:
                 if active_case:
                     active_state = get_case_state(active_case)
-                    st.text(active_state['last_check'] or '-')
+                    st.text(active_state["last_check"] or "-")
                 else:
                     st.text("-")
         with col3:
@@ -1213,7 +1376,7 @@ with collect_tab:
                 st.text("running")
             elif active_case:
                 active_state = get_case_state(active_case)
-                st.text(active_state['status'])
+                st.text(active_state["status"])
             else:
                 st.text("-")
 
@@ -1265,7 +1428,9 @@ with collect_tab:
                     if active_case_name:
                         output_dir_path = Path(runtime.get("output_dir", ""))
                         if output_dir_path.exists():
-                            case_files = sorted(output_dir_path.glob(f"{active_case_name}_*.csv"))
+                            case_files = sorted(
+                                output_dir_path.glob(f"{active_case_name}_*.csv")
+                            )
                             if case_files and 0 <= group_idx < len(case_files):
                                 # 删除当前选中的组
                                 file_to_delete = case_files[group_idx]
@@ -1276,9 +1441,13 @@ with collect_tab:
                                 # 更新索引
                                 new_count = len(case_files) - 1
                                 if new_count > 0:
-                                    st.session_state[f"{active_case_name}_selected_group"] = min(group_idx, new_count - 1)
+                                    st.session_state[
+                                        f"{active_case_name}_selected_group"
+                                    ] = min(group_idx, new_count - 1)
                                 else:
-                                    st.session_state[f"{active_case_name}_selected_group"] = 0
+                                    st.session_state[
+                                        f"{active_case_name}_selected_group"
+                                    ] = 0
                         # 重置状态
                         state = get_case_state(active_case_name)
                         state["status"] = "pending"
@@ -1289,7 +1458,13 @@ with collect_tab:
 
         st.markdown("**实时日志**")
         log_text = "\n".join(runtime.get("logs", [])[-200:])
-        st.text_area("日志", value=log_text, height=300, label_visibility="collapsed", key="log_area")
+        st.text_area(
+            "日志",
+            value=log_text,
+            height=300,
+            label_visibility="collapsed",
+            key="log_area",
+        )
 
         if running:
             time.sleep(1)
@@ -1297,7 +1472,8 @@ with collect_tab:
 
 with analysis_tab:
     # 注入超紧凑样式到整个标签页
-    st.markdown("""
+    st.markdown(
+        """
     <style>
     /* 强制压缩所有控件高度和间距 */
     .main [data-testid="stVerticalBlock"] > div {
@@ -1365,15 +1541,21 @@ with analysis_tab:
         margin-bottom: 0.1rem !important;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     # === 顶部路径输入 ===
     col_path1, col_path2 = st.columns(2)
     with col_path1:
-        data_dir_text = st.text_input("Data directory", value=output_default(), key="analysis_data_dir")
+        data_dir_text = st.text_input(
+            "Data directory", value=output_default(), key="analysis_data_dir"
+        )
         data_dir = resolve_path(data_dir_text)
     with col_path2:
-        export_dir_text = st.text_input("Export directory", value=results_default(), key="analysis_export_dir")
+        export_dir_text = st.text_input(
+            "Export directory", value=results_default(), key="analysis_export_dir"
+        )
         export_dir = resolve_path(export_dir_text)
 
     config = CalibrationConfig()
@@ -1387,47 +1569,108 @@ with analysis_tab:
 
         p1, p2 = st.columns(2)
         with p1:
-            config.speed_source = st.selectbox("Speed", ["chassis", "localization"])
+            config.speed_source = st.selectbox(
+                "Speed",
+                ["chassis", "localization"],
+                help="速度数据来源: chassis=底盘, localization=定位",
+            )
         with p2:
-            config.accel_source = st.selectbox("Accel", ["imu", "derivative"])
+            config.accel_source = st.selectbox(
+                "Accel",
+                ["imu", "derivative"],
+                help="加速度来源: imu=IMU传感器, derivative=速度微分",
+            )
 
         p3, p4 = st.columns(2)
         with p3:
-            config.throttle_latency_ms = st.number_input("Throttle ms", 0, 500, 60)
+            config.throttle_latency_ms = st.number_input(
+                "Throttle ms", 0, 500, 60, help="油门响应延迟补偿(毫秒)"
+            )
         with p4:
-            config.brake_latency_ms = st.number_input("Brake ms", 0, 500, 60)
+            config.brake_latency_ms = st.number_input(
+                "Brake ms", 0, 500, 60, help="刹车响应延迟补偿(毫秒)"
+            )
 
         p_stab1, p_stab2 = st.columns(2)
         with p_stab1:
-            config.throttle_stability_window_ms = st.number_input("油门稳定窗口", 0, 1000, 200)
+            config.throttle_stability_window_ms = st.number_input(
+                "油门稳定窗口", 0, 1000, 200, help="命令切换后丢弃的时间窗口(毫秒)"
+            )
         with p_stab2:
-            config.brake_stability_window_ms = st.number_input("刹车稳定窗口", 0, 1000, 300)
+            config.brake_stability_window_ms = st.number_input(
+                "刹车稳定窗口", 0, 1000, 300, help="命令切换后丢弃的时间窗口(毫秒)"
+            )
 
         # 合并速度范围
-        speed_min, speed_max = st.slider("速度范围(m/s)", 0.0, 10.0, (0.0, 5.0))
+        speed_min, speed_max = st.slider(
+            "速度范围(m/s)",
+            0.0,
+            10.0,
+            (0.0, 5.0),
+            help="用于标定的速度范围, 超出范围的数据将被丢弃",
+        )
         config.min_throttle_speed_mps = speed_min
         config.max_throttle_speed_mps = speed_max
         config.min_brake_speed_mps = speed_min
         config.max_brake_speed_mps = speed_max
 
-        config.lowpass_cutoff = st.slider("Filter Hz", 0.1, 5.0, 1.0, 0.1)
+        config.lowpass_cutoff = st.slider(
+            "Filter Hz",
+            0.1,
+            5.0,
+            1.0,
+            0.1,
+            help="低通滤波截止频率: 去除高频噪声,越小越平滑",
+        )
 
         p5, p6 = st.columns(2)
         with p5:
-            config.command_resolution = st.slider("Cmd %", 1.0, 10.0, 5.0, 0.5)
+            config.command_resolution = st.slider(
+                "Cmd %",
+                1.0,
+                10.0,
+                5.0,
+                0.5,
+                help="命令轴分辨率(%): 标定表步长, 越小越精细",
+            )
         with p6:
-            config.speed_resolution = st.slider("Speed m/s", 0.1, 1.0, 0.2, 0.05)
+            config.speed_resolution = st.slider(
+                "Speed m/s",
+                0.1,
+                1.0,
+                0.2,
+                0.05,
+                help="速度轴分辨率(m/s): 标定表步长, 越小越精细",
+            )
 
-        config.enable_lof = st.checkbox("LOF", True)
+        config.enable_lof = st.checkbox(
+            "LOF", True, help="启用异常值检测: 自动过滤传感器噪声和异常数据点"
+        )
         if config.enable_lof:
             p7, p8 = st.columns(2)
             with p7:
-                config.lof_neighbors = st.slider("Neighbors", 5, 100, 30)
+                config.lof_neighbors = st.slider(
+                    "Neighbors",
+                    5,
+                    100,
+                    30,
+                    help="LOF邻居数: 判断异常值时参考的邻近点数量",
+                )
             with p8:
-                config.lof_contamination = st.slider("Contam", 0.0, 0.1, 0.02, 0.005, format="%.3f")
+                config.lof_contamination = st.slider(
+                    "Contam",
+                    0.0,
+                    0.1,
+                    0.02,
+                    0.005,
+                    format="%.3f",
+                    help="污染率: 预期异常值比例, 越小越严格",
+                )
 
     # === 加载数据 ===
-    raw_df, clean_df, speed_grid, cmd_grid, accel_grid, metrics = load_and_process(config, str(data_dir))
+    raw_df, clean_df, speed_grid, cmd_grid, accel_grid, metrics = load_and_process(
+        config, str(data_dir)
+    )
 
     # === 中列：可视化 ===
     with viz_col:
@@ -1437,15 +1680,15 @@ with analysis_tab:
                 "显示数据",
                 ["油门+刹车", "仅油门", "仅刹车"],
                 horizontal=True,
-                help="选择3D曲面图显示的数据范围"
+                help="选择3D曲面图显示的数据范围",
             )
 
             # 根据选择过滤数据
             if viz_mode == "仅油门":
-                mask_filter = (cmd_grid >= 0)
+                mask_filter = cmd_grid >= 0
                 display_name = "油门标定曲面"
             elif viz_mode == "仅刹车":
-                mask_filter = (cmd_grid <= 0)
+                mask_filter = cmd_grid <= 0
                 display_name = "刹车标定曲面"
             else:
                 mask_filter = slice(None)  # 全部
@@ -1472,22 +1715,26 @@ with analysis_tab:
 
             # 3D Surface Plot
             fig = go.Figure()
-            fig.add_trace(go.Surface(
-                z=accel_grid_display.T,
-                x=cmd_grid_display,
-                y=speed_grid,
-                colorscale="RdBu",
-                opacity=0.85,
-                colorbar={"title": "Accel (m/s²)"}
-            ))
-            fig.add_trace(go.Scatter3d(
-                x=scatter_df["command"],
-                y=scatter_df["final_speed"],
-                z=scatter_df["accel_aligned"],
-                mode="markers",
-                marker={"size": 2, "color": "black"},
-                name="samples",
-            ))
+            fig.add_trace(
+                go.Surface(
+                    z=accel_grid_display.T,
+                    x=cmd_grid_display,
+                    y=speed_grid,
+                    colorscale="RdBu",
+                    opacity=0.85,
+                    colorbar={"title": "Accel (m/s²)"},
+                )
+            )
+            fig.add_trace(
+                go.Scatter3d(
+                    x=scatter_df["command"],
+                    y=scatter_df["final_speed"],
+                    z=scatter_df["accel_aligned"],
+                    mode="markers",
+                    marker={"size": 2, "color": "black"},
+                    name="samples",
+                )
+            )
             fig.update_layout(
                 title=display_name,
                 scene={
@@ -1497,9 +1744,10 @@ with analysis_tab:
                     "camera": {
                         "eye": {"x": -1.5, "y": 1.5, "z": 1.5},
                         "center": {"x": 0, "y": 0, "z": 0},
-                    }
+                    },
                 },
-                height=500, margin={"l": 0, "r": 0, "t": 30, "b": 0}
+                height=500,
+                margin={"l": 0, "r": 0, "t": 30, "b": 0},
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -1508,7 +1756,9 @@ with analysis_tab:
             with exp1:
                 if st.button("📥 Export"):
                     export_dir.mkdir(parents=True, exist_ok=True)
-                    Exporter.save_unified_csv(speed_grid, cmd_grid, accel_grid, export_dir)
+                    Exporter.save_unified_csv(
+                        speed_grid, cmd_grid, accel_grid, export_dir
+                    )
                     Exporter.save_protobuf(speed_grid, cmd_grid, accel_grid, export_dir)
                     Exporter.save_metrics(metrics, export_dir)
                     st.success(f"Exported to {export_dir}")
@@ -1524,25 +1774,64 @@ with analysis_tab:
             # 表格和响应曲线（折叠显示）
             with st.expander("📋 标定表 & 响应曲线"):
                 tab1, tab2, tab3 = st.tabs(["油门表", "刹车表", "响应曲线"])
-                throttle_table, brake_table = build_lookup_table_frames(speed_grid, cmd_grid, accel_grid)
+                throttle_table, brake_table = build_lookup_table_frames(
+                    speed_grid, cmd_grid, accel_grid
+                )
                 with tab1:
-                    st.dataframe(throttle_table.style.format("{:.3f}"), use_container_width=True, height=300)
+                    st.dataframe(
+                        throttle_table.style.format("{:.3f}"),
+                        use_container_width=True,
+                        height=300,
+                    )
                 with tab2:
-                    st.dataframe(brake_table.style.format("{:.3f}"), use_container_width=True, height=300)
+                    st.dataframe(
+                        brake_table.style.format("{:.3f}"),
+                        use_container_width=True,
+                        height=300,
+                    )
                 with tab3:
-                    st.plotly_chart(build_speed_slice_figure(speed_grid, cmd_grid, accel_grid), use_container_width=True)
+                    st.plotly_chart(
+                        build_speed_slice_figure(speed_grid, cmd_grid, accel_grid),
+                        use_container_width=True,
+                    )
 
                 # 单个文件响应
                 if "source_file" in clean_df.columns and len(clean_df) > 0:
                     st.markdown("---")
-                    selected_file = st.selectbox("Step Response File", sorted(clean_df["source_file"].unique().tolist()))
-                    step_df = clean_df[clean_df["source_file"] == selected_file].sort_values("time")
+                    selected_file = st.selectbox(
+                        "Step Response File",
+                        sorted(clean_df["source_file"].unique().tolist()),
+                    )
+                    step_df = clean_df[
+                        clean_df["source_file"] == selected_file
+                    ].sort_values("time")
                     if not step_df.empty:
                         fig2 = go.Figure()
-                        fig2.add_trace(go.Scatter(x=step_df["time"], y=step_df["command"], name="cmd"))
-                        fig2.add_trace(go.Scatter(x=step_df["time"], y=step_df["raw_accel"] * 10.0, name="raw*10"))
-                        fig2.add_trace(go.Scatter(x=step_df["time"], y=step_df["accel_aligned"] * 10.0, name="align*10"))
-                        fig2.update_layout(height=300, xaxis_title="time", yaxis_title="scaled", margin={"l": 0, "r": 0, "t": 0, "b": 0})
+                        fig2.add_trace(
+                            go.Scatter(
+                                x=step_df["time"], y=step_df["command"], name="cmd"
+                            )
+                        )
+                        fig2.add_trace(
+                            go.Scatter(
+                                x=step_df["time"],
+                                y=step_df["raw_accel"] * 10.0,
+                                name="raw*10",
+                            )
+                        )
+                        fig2.add_trace(
+                            go.Scatter(
+                                x=step_df["time"],
+                                y=step_df["accel_aligned"] * 10.0,
+                                name="align*10",
+                            )
+                        )
+                        fig2.update_layout(
+                            height=300,
+                            xaxis_title="time",
+                            yaxis_title="scaled",
+                            margin={"l": 0, "r": 0, "t": 0, "b": 0},
+                        )
                         st.plotly_chart(fig2, use_container_width=True)
         elif raw_df is None:
             st.warning(f"No data in: {data_dir}")
@@ -1553,7 +1842,8 @@ with analysis_tab:
             st.markdown("##### 📊 指标 Metrics")
 
             # 调整指标标题间距
-            st.markdown("""
+            st.markdown(
+                """
             <style>
             /* 调整指标标题间距 - 在列内注入 */
             [data-testid="stMarkdownContainer"] strong {
@@ -1567,63 +1857,109 @@ with analysis_tab:
                 margin-top: -0.2rem !important;
             }
             </style>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
             # === 油门指标 ===
             st.markdown("**油门指标**")
             throttle_metrics = []
-            t_dz = metrics.get('throttle_deadzone_pct', 0)
-            rating_t_dz = get_metric_rating(t_dz, 'deadzone')
-            throttle_metrics.append((f"油门死区", f"{t_dz:.0f}%", rating_t_dz, "最小指令产生响应的阈值"))
+            t_dz = metrics.get("throttle_deadzone_pct", 0)
+            rating_t_dz = get_metric_rating(t_dz, "deadzone")
+            throttle_metrics.append(
+                (f"油门死区", f"{t_dz:.0f}%", rating_t_dz, "最小指令产生响应的阈值")
+            )
 
-            t_r2 = metrics.get('throttle_linearity_R2', 0)
-            rating_t_r2 = get_metric_rating(t_r2, 'r2')
-            throttle_metrics.append((f"线性度(R²)", f"{t_r2:.3f}", rating_t_r2, "参考指标，非主要评价标准"))
+            t_r2 = metrics.get("throttle_linearity_R2", 0)
+            rating_t_r2 = get_metric_rating(t_r2, "r2")
+            throttle_metrics.append(
+                (f"线性度(R²)", f"{t_r2:.3f}", rating_t_r2, "参考指标，非主要评价标准")
+            )
 
-            t_smooth = metrics.get('throttle_smoothness_score_100', 0)
-            rating_t_smooth = get_metric_rating(t_smooth, 'smoothness')
-            throttle_metrics.append((f"平滑度", f"{t_smooth:.0f}分", rating_t_smooth, "曲线平滑度评分"))
+            t_smooth = metrics.get("throttle_smoothness_score_100", 0)
+            rating_t_smooth = get_metric_rating(t_smooth, "smoothness")
+            throttle_metrics.append(
+                (f"平滑度", f"{t_smooth:.0f}分", rating_t_smooth, "曲线平滑度评分")
+            )
 
-            t_vio = metrics.get('throttle_monotonic_violations', 0)
-            rating_t_vio = get_metric_rating(t_vio, 'monotonicity')
-            throttle_metrics.append((f"单调性", f"{t_vio}违反", rating_t_vio, "硬性要求：必须为0违反"))
+            t_vio = metrics.get("throttle_monotonic_violations", 0)
+            rating_t_vio = get_metric_rating(t_vio, "monotonicity")
+            throttle_metrics.append(
+                (f"单调性", f"{t_vio}违反", rating_t_vio, "硬性要求：必须为0违反")
+            )
 
-            t_mae = metrics.get('throttle_residual_mae')
+            t_mae = metrics.get("throttle_residual_mae")
             if t_mae is not None:
-                rating_t_mae = get_metric_rating(t_mae, 'mae')
-                throttle_metrics.append((f"平均误差", f"{t_mae:.3f}", rating_t_mae, "主要评价指标：越小越好"))
-                t_rmse = metrics.get('throttle_residual_rmse', 0)
-                rating_t_rmse = get_metric_rating(t_rmse, 'rmse')
-                throttle_metrics.append((f"均方根误差", f"{t_rmse:.3f}", rating_t_rmse, "主要评价指标：越小越好"))
+                rating_t_mae = get_metric_rating(t_mae, "mae")
+                throttle_metrics.append(
+                    (
+                        f"平均误差",
+                        f"{t_mae:.3f}",
+                        rating_t_mae,
+                        "主要评价指标：越小越好",
+                    )
+                )
+                t_rmse = metrics.get("throttle_residual_rmse", 0)
+                rating_t_rmse = get_metric_rating(t_rmse, "rmse")
+                throttle_metrics.append(
+                    (
+                        f"均方根误差",
+                        f"{t_rmse:.3f}",
+                        rating_t_rmse,
+                        "主要评价指标：越小越好",
+                    )
+                )
 
             render_metrics_grid(throttle_metrics, columns=2)
 
             # === 刹车指标 ===
             st.markdown("**刹车指标**")
             brake_metrics = []
-            b_dz = metrics.get('brake_deadzone_pct', 0)
-            rating_b_dz = get_metric_rating(b_dz, 'deadzone')
-            brake_metrics.append((f"刹车死区", f"{b_dz:.0f}%", rating_b_dz, "最小指令产生响应的阈值"))
+            b_dz = metrics.get("brake_deadzone_pct", 0)
+            rating_b_dz = get_metric_rating(b_dz, "deadzone")
+            brake_metrics.append(
+                (f"刹车死区", f"{b_dz:.0f}%", rating_b_dz, "最小指令产生响应的阈值")
+            )
 
-            b_r2 = metrics.get('brake_linearity_R2', 0)
-            rating_b_r2 = get_metric_rating(b_r2, 'r2')
-            brake_metrics.append((f"线性度(R²)", f"{b_r2:.3f}", rating_b_r2, "参考指标，非主要评价标准"))
+            b_r2 = metrics.get("brake_linearity_R2", 0)
+            rating_b_r2 = get_metric_rating(b_r2, "r2")
+            brake_metrics.append(
+                (f"线性度(R²)", f"{b_r2:.3f}", rating_b_r2, "参考指标，非主要评价标准")
+            )
 
-            b_smooth = metrics.get('brake_smoothness_score_100', 0)
-            rating_b_smooth = get_metric_rating(b_smooth, 'smoothness')
-            brake_metrics.append((f"平滑度", f"{b_smooth:.0f}分", rating_b_smooth, "曲线平滑度评分"))
+            b_smooth = metrics.get("brake_smoothness_score_100", 0)
+            rating_b_smooth = get_metric_rating(b_smooth, "smoothness")
+            brake_metrics.append(
+                (f"平滑度", f"{b_smooth:.0f}分", rating_b_smooth, "曲线平滑度评分")
+            )
 
-            b_vio = metrics.get('brake_monotonic_violations', 0)
-            rating_b_vio = get_metric_rating(b_vio, 'monotonicity')
-            brake_metrics.append((f"单调性", f"{b_vio}违反", rating_b_vio, "硬性要求：必须为0违反"))
+            b_vio = metrics.get("brake_monotonic_violations", 0)
+            rating_b_vio = get_metric_rating(b_vio, "monotonicity")
+            brake_metrics.append(
+                (f"单调性", f"{b_vio}违反", rating_b_vio, "硬性要求：必须为0违反")
+            )
 
-            b_mae = metrics.get('brake_residual_mae')
+            b_mae = metrics.get("brake_residual_mae")
             if b_mae is not None:
-                rating_b_mae = get_metric_rating(b_mae, 'mae')
-                brake_metrics.append((f"平均误差", f"{b_mae:.3f}", rating_b_mae, "主要评价指标：越小越好"))
-                b_rmse = metrics.get('brake_residual_rmse', 0)
-                rating_b_rmse = get_metric_rating(b_rmse, 'rmse')
-                brake_metrics.append((f"均方根误差", f"{b_rmse:.3f}", rating_b_rmse, "主要评价指标：越小越好"))
+                rating_b_mae = get_metric_rating(b_mae, "mae")
+                brake_metrics.append(
+                    (
+                        f"平均误差",
+                        f"{b_mae:.3f}",
+                        rating_b_mae,
+                        "主要评价指标：越小越好",
+                    )
+                )
+                b_rmse = metrics.get("brake_residual_rmse", 0)
+                rating_b_rmse = get_metric_rating(b_rmse, "rmse")
+                brake_metrics.append(
+                    (
+                        f"均方根误差",
+                        f"{b_rmse:.3f}",
+                        rating_b_rmse,
+                        "主要评价指标：越小越好",
+                    )
+                )
 
             render_metrics_grid(brake_metrics, columns=2)
 
@@ -1631,25 +1967,29 @@ with analysis_tab:
             st.markdown("**公共指标**")
 
             # 响应范围
-            max_accel = metrics.get('max_throttle_accel', 0)
-            max_decel = metrics.get('max_brake_decel', 0)
-            st.markdown(f"""
+            max_accel = metrics.get("max_throttle_accel", 0)
+            max_decel = metrics.get("max_brake_decel", 0)
+            st.markdown(
+                f"""
             <div style="display:flex;gap:20px;margin-bottom:8px;">
                 <div style="font-size:11px;color:#999;">响应范围:</div>
                 <div style="font-size:13px;color:#64DD17;">油门 {max_accel:.2f} m/s²</div>
                 <div style="font-size:13px;color:#FF3D00;">刹车 {max_decel:.2f} m/s²</div>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
             # 单调性总体状态
-            mono_pass = metrics.get('monotonicity_pass', False)
-            t_vio = metrics.get('throttle_monotonic_violations', 0)
-            b_vio = metrics.get('brake_monotonic_violations', 0)
+            mono_pass = metrics.get("monotonicity_pass", False)
+            t_vio = metrics.get("throttle_monotonic_violations", 0)
+            b_vio = metrics.get("brake_monotonic_violations", 0)
 
-            mono_color = '#00C853' if mono_pass else '#FF3D00'
-            mono_status = '✓ 通过' if mono_pass else '✗ 不通过'
+            mono_color = "#00C853" if mono_pass else "#FF3D00"
+            mono_status = "✓ 通过" if mono_pass else "✗ 不通过"
 
-            st.markdown(f"""
+            st.markdown(
+                f"""
             <div style="padding:6px 8px;background:#1A2E1A;border-radius:4px;border-left:2px solid {mono_color};">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <span style="font-size:11px;color:#CCC;">单调性总评</span>
@@ -1657,7 +1997,9 @@ with analysis_tab:
                 </div>
                 <div style="margin-top:2px;font-size:10px;color:#999;">油门:{t_vio} 违反  |  刹车:{b_vio} 违反</div>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
 # === 侧边栏实用功能 ===
 st.sidebar.markdown("### ⚡ 快捷操作")
