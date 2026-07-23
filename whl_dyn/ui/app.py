@@ -16,11 +16,13 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from whl_dyn.planning.generator import generate_calibration_plan
+from whl_dyn.planning.generator import generate_calibration_plan, generate_dynamic_plan
 from whl_dyn.processing.config import CalibrationConfig
 from whl_dyn.processing.data_core import DataCore
 from whl_dyn.processing.exporter import Exporter
+from whl_dyn.processing.dynamics import is_dynamic_log
 from whl_dyn.processing.metrics import MetricsEvaluator
+from whl_dyn.processing.dynamics import analyze_dynamic, load_dynamic_csv
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -109,7 +111,14 @@ def parse_case_summary(case: dict) -> dict:
     steps = case.get("steps", [])
     cmd0 = steps[0].get("command", {}) if steps else {}
     trg0 = steps[0].get("trigger", {}) if steps else {}
+    dynamic = bool(case.get("dynamic") or case.get("domain") in
+                   ("actuator_characterization", "frequency_response") or
+                   "command_profile" in case)
+    profile = case.get("command_profile", case.get("profile", {}))
     case_type = (
+        "dynamic"
+        if dynamic
+        else
         "throttle"
         if name.startswith("throttle_")
         else "brake"
@@ -124,6 +133,10 @@ def parse_case_summary(case: dict) -> dict:
         "cmd_brake": float(cmd0.get("brake", 0.0)),
         "trigger": trg0.get("type", ""),
         "trigger_value": float(trg0.get("value", 0.0)),
+        "mode": case.get("mode", ""),
+        "actuator": case.get("actuator", ""),
+        "duration_sec": float(case.get("duration_sec", profile.get("duration_sec", 0.0))),
+        "profile": profile.get("type", ""),
     }
 
 
@@ -136,6 +149,10 @@ def build_plan_df(plan: list) -> pd.DataFrame:
         "cmd_brake",
         "trigger",
         "trigger_value",
+        "mode",
+        "actuator",
+        "duration_sec",
+        "profile",
     ]
     if not plan:
         return pd.DataFrame(columns=columns)
@@ -230,6 +247,28 @@ def check_csv_sanity(csv_path: Optional[Path]) -> dict:
             "rows": int(len(df)),
             "speed_span": 0.0,
             "command_span": 0.0,
+        }
+
+    if is_dynamic_log(df):
+        command_span = float((df["ctl_throttle"] - df["ctl_brake"]).abs().max())
+        time_span = float(df["time"].max() - df["time"].min()) if len(df) else 0.0
+        valid_dynamic = len(df) >= 10 and command_span >= 0.1 and time_span >= 0.5
+        return {
+            "ok": valid_dynamic,
+            "reason": "ok"
+            if valid_dynamic
+            else (
+                "too_few_rows"
+                if len(df) < 10
+                else "command_span_too_small"
+                if command_span < 0.1
+                else "time_span_too_small"
+            ),
+            "rows": int(len(df)),
+            "speed_span": float(df["speed_mps"].max() - df["speed_mps"].min())
+            if len(df)
+            else 0.0,
+            "command_span": command_span,
         }
 
     speed_span = (
@@ -1100,6 +1139,53 @@ with plan_tab:
             )
             generate_calibration_plan(args)
             st.success(f"计划已生成: {plan_path}")
+        with st.expander("动态测试计划（Step / Sweep 优先）"):
+            dynamic_mode = st.selectbox(
+                "动态类型",
+                ["step", "sweep", "ramp", "pulse", "triangle", "hysteresis",
+                 "single_sine", "chirp", "multi_sine"],
+                key="dynamic_mode",
+            )
+            dynamic_actuator = st.selectbox(
+                "动态执行器", ["throttle", "brake"], key="dynamic_actuator"
+            )
+            d1, d2 = st.columns(2)
+            with d1:
+                dynamic_amplitude = st.number_input(
+                    "幅值 (%)", 0.0, 100.0, 20.0, key="dynamic_amplitude"
+                )
+                dynamic_baseline = st.number_input(
+                    "基线 (%)", 0.0, 100.0, 0.0, key="dynamic_baseline"
+                )
+                dynamic_duration = st.number_input(
+                    "持续时间 (s)", 0.5, 600.0, 10.0, key="dynamic_duration"
+                )
+            with d2:
+                dynamic_sample_rate = st.number_input(
+                    "采样率 (Hz)", 1.0, 500.0, 50.0, key="dynamic_sample_rate"
+                )
+                dynamic_start_freq = st.number_input(
+                    "Sweep 起始频率 (Hz)", 0.001, 100.0, 0.1,
+                    key="dynamic_start_frequency"
+                )
+            dynamic_end_freq = st.number_input(
+                "Sweep 终止频率 (Hz)", 0.001, 100.0, 2.0,
+                key="dynamic_end_frequency"
+            )
+            if st.button("生成动态计划", key="generate_dynamic_plan"):
+                dynamic_args = Namespace(
+                    output=str(plan_path),
+                    mode=dynamic_mode,
+                    actuator=dynamic_actuator,
+                    amplitude=float(dynamic_amplitude),
+                    baseline=float(dynamic_baseline),
+                    duration_sec=float(dynamic_duration),
+                    sampling_rate_hz=float(dynamic_sample_rate),
+                    frequency_start_hz=float(dynamic_start_freq),
+                    frequency_end_hz=float(dynamic_end_freq),
+                )
+                generate_dynamic_plan(dynamic_args)
+                st.success("动态计划已生成: {0}".format(plan_path))
 
     plan_path = resolve_path(plan_path_text)
     plan = load_plan(plan_path)
@@ -1557,6 +1643,78 @@ with analysis_tab:
             "Export directory", value=results_default(), key="analysis_export_dir"
         )
         export_dir = resolve_path(export_dir_text)
+
+    # Dynamic logs use the same collector CSV format but carry explicit mode
+    # metadata.  Keep this panel separate so calibration processing is unchanged.
+    dynamic_files = []
+    if data_dir.exists():
+        for candidate in sorted(data_dir.glob("*.csv")):
+            try:
+                header = pd.read_csv(candidate, nrows=1)
+            except (OSError, ValueError, pd.errors.ParserError):
+                continue
+            if is_dynamic_log(header) or "dynamic" in candidate.stem.lower():
+                dynamic_files.append(candidate)
+
+    if dynamic_files:
+        st.markdown("##### 📈 动态响应分析")
+        dynamic_labels = [path.name for path in dynamic_files]
+        selected_dynamic = st.selectbox("动态 CSV", dynamic_labels, key="dynamic_csv")
+        selected_dynamic_path = dynamic_files[dynamic_labels.index(selected_dynamic)]
+        dynamic_df = load_dynamic_csv(selected_dynamic_path)
+        mode_value = None
+        if "mode" in dynamic_df.columns and len(dynamic_df):
+            mode_value = str(dynamic_df["mode"].iloc[0])
+        try:
+            dynamic_result = analyze_dynamic(dynamic_df, mode=mode_value)
+        except (ValueError, KeyError) as exc:
+            st.warning("动态数据无法分析: {0}".format(exc))
+        else:
+            result_kind = dynamic_result["kind"]
+            result = dynamic_result["result"]
+            if result_kind == "step":
+                st.dataframe(pd.DataFrame([{
+                    "dead_time_sec": result["dead_time_sec"],
+                    "rise_time_sec": result["rise_time_sec"],
+                    "settling_time_sec": result["settling_time_sec"],
+                    "gain": result["gain"],
+                    "time_constant_sec": result["time_constant_sec"],
+                }]), use_container_width=True)
+                step_fig = go.Figure()
+                step_fig.add_trace(go.Scatter(
+                    x=result["data"]["time"], y=result["data"]["input"], name="command"
+                ))
+                step_fig.add_trace(go.Scatter(
+                    x=result["data"]["time"], y=result["data"]["output"], name="feedback",
+                    yaxis="y2"
+                ))
+                step_fig.update_layout(
+                    height=330, xaxis_title="Time (s)", yaxis_title="Command",
+                    yaxis2={"title": "Feedback", "overlaying": "y", "side": "right"},
+                )
+                st.plotly_chart(step_fig, use_container_width=True)
+            else:
+                frequency_fig = go.Figure()
+                frequency_fig.add_trace(go.Scatter(
+                    x=result["frequency_hz"], y=result["magnitude_db"],
+                    name="Magnitude (dB)"
+                ))
+                frequency_fig.add_trace(go.Scatter(
+                    x=result["frequency_hz"], y=result["phase_deg"],
+                    name="Phase (deg)", yaxis="y2"
+                ))
+                frequency_fig.update_layout(
+                    height=330, xaxis_title="Frequency (Hz)", xaxis_type="log",
+                    yaxis_title="Magnitude (dB)",
+                    yaxis2={"title": "Phase (deg)", "overlaying": "y", "side": "right"},
+                )
+                st.plotly_chart(frequency_fig, use_container_width=True)
+                st.dataframe(pd.DataFrame({
+                    "frequency_hz": result["frequency_hz"],
+                    "magnitude_db": result["magnitude_db"],
+                    "phase_deg": result["phase_deg"],
+                    "coherence": result["coherence"],
+                }), use_container_width=True)
 
     config = CalibrationConfig()
 

@@ -8,6 +8,7 @@ operator feedback, adhering to industry best practices.
 """
 
 import argparse
+import math
 import signal
 import sys
 import time
@@ -24,6 +25,108 @@ from modules.common_msgs.localization_msgs import localization_pb2
 
 
 # --- Use dataclasses for clear state management ---
+SUPPORTED_DYNAMIC_PROFILES = (
+    "step", "ramp", "pulse", "triangle", "hysteresis",
+    "single_sine", "chirp", "sweep", "multi_sine",
+)
+
+
+def _profile_number(profile, names, default=0.0):
+    """Return the first present numeric profile parameter."""
+    for name in names:
+        if name in profile and profile[name] is not None:
+            return float(profile[name])
+    return float(default)
+
+
+def evaluate_command_profile(profile, elapsed_sec):
+    """Evaluate a generic open-loop command profile at elapsed time.
+
+    This pure helper is kept independent of CyberRT so plans can be validated
+    and tested on a workstation.  The collector clamps the resulting command
+    to the actuator's valid range before publishing it.
+    """
+    if not isinstance(profile, dict):
+        raise ValueError("command profile must be a mapping")
+    profile_type = str(profile.get(
+        "type", profile.get("profile_type", profile.get("mode", "step")))).lower()
+    profile_type = profile_type.replace("-", "_").replace(" ", "_")
+    if profile_type not in SUPPORTED_DYNAMIC_PROFILES:
+        raise ValueError("unsupported dynamic profile: {0}".format(profile_type))
+
+    t = max(0.0, float(elapsed_sec))
+    baseline = _profile_number(profile, ("baseline", "offset", "start_value"), 0.0)
+    amplitude = _profile_number(profile, ("amplitude", "level", "height", "peak"), 0.0)
+    start = _profile_number(profile, ("start_time_sec", "start_sec"), 0.0)
+    end = _profile_number(profile, ("end_time_sec", "end_sec"), start)
+
+    if profile_type == "step":
+        return baseline if t < start else baseline + amplitude
+    if profile_type == "ramp":
+        ramp_start = _profile_number(profile, ("ramp_start_sec", "start_time_sec"), 0.0)
+        ramp_end = _profile_number(profile, ("ramp_end_sec", "end_time_sec"), 1.0)
+        target = _profile_number(profile, ("end_value", "target", "final_value"),
+                                 baseline + amplitude)
+        if t <= ramp_start:
+            return baseline
+        if t >= ramp_end:
+            return target
+        fraction = (t - ramp_start) / max(ramp_end - ramp_start, 1e-9)
+        return baseline + fraction * (target - baseline)
+    if profile_type == "pulse":
+        pulse_start = _profile_number(profile, ("pulse_start_sec", "start_time_sec"), 0.0)
+        pulse_duration = _profile_number(profile, ("pulse_duration_sec", "width_sec"), 1.0)
+        return baseline + amplitude if pulse_start <= t < pulse_start + pulse_duration else baseline
+    if profile_type == "triangle":
+        period = max(_profile_number(profile, ("period_sec", "period"), 2.0), 1e-9)
+        low = _profile_number(profile, ("min_value", "low"), baseline - abs(amplitude))
+        high = _profile_number(profile, ("max_value", "high"), baseline + abs(amplitude))
+        phase = (t - start) % period / period
+        value = 2.0 * phase if phase < 0.5 else 2.0 * (1.0 - phase)
+        return low + (high - low) * value
+    if profile_type == "hysteresis":
+        period = max(_profile_number(profile, ("period_sec", "period"), 2.0), 1e-9)
+        low = _profile_number(profile, ("low", "min_value"), baseline)
+        high = _profile_number(profile, ("high", "max_value"), baseline + amplitude)
+        return high if ((t - start) % period) >= period / 2.0 else low
+    if profile_type == "single_sine":
+        frequency = _profile_number(profile, ("frequency_hz", "frequency"), 1.0)
+        phase = _profile_number(profile, ("phase_rad", "phase"), 0.0)
+        return baseline + amplitude * math.sin(2.0 * math.pi * frequency * t + phase)
+    if profile_type in ("chirp", "sweep"):
+        f0 = _profile_number(profile, ("frequency_start_hz", "f0_hz", "start_frequency_hz"), 0.1)
+        f1 = _profile_number(profile, ("frequency_end_hz", "f1_hz", "end_frequency_hz"), 2.0)
+        sweep_duration = max(_profile_number(profile, ("sweep_duration_sec", "duration_sec"), 10.0), 1e-9)
+        local_t = min(t, sweep_duration)
+        method = str(profile.get("method", "linear")).lower()
+        if (method in ("log", "logarithmic", "exponential") and
+                f0 > 0 and f1 > 0 and abs(f1 - f0) > 1e-12):
+            ratio = f1 / f0
+            phase = 2.0 * math.pi * f0 * sweep_duration / math.log(ratio)
+            phase *= math.pow(ratio, local_t / sweep_duration) - 1.0
+        else:
+            phase = 2.0 * math.pi * (f0 * local_t +
+                                     0.5 * (f1 - f0) * local_t * local_t / sweep_duration)
+        return baseline + amplitude * math.sin(phase)
+    # multi_sine
+    frequencies = profile.get("frequencies_hz", profile.get("frequencies", [1.0]))
+    amplitudes = profile.get("amplitudes", [amplitude] * len(frequencies))
+    phases = profile.get("phases_rad", profile.get("phases", []))
+    result = baseline
+    for index, frequency in enumerate(frequencies):
+        amp = float(amplitudes[index]) if index < len(amplitudes) else amplitude
+        phase = float(phases[index]) if index < len(phases) else 0.0
+        result += amp * math.sin(2.0 * math.pi * float(frequency) * t + phase)
+    return result
+
+
+def is_dynamic_case(case_config):
+    """Identify a dynamic case while accepting old calibration case schemas."""
+    return bool(case_config.get("dynamic") or case_config.get("domain") in
+                ("actuator_characterization", "frequency_response") or
+                "command_profile" in case_config or "profile" in case_config)
+
+
 @dataclass
 class VehicleState:
     """Snapshot of all relevant vehicle data at a point in time"""
@@ -77,6 +180,7 @@ class AdvancedDataCollector:
         self.sequence_num = 0
         self.abort_signal_received = False
         self.trigger_met_time = None  # Track when trigger condition was met
+        self.dynamic_start_time = 0.0
 
         time.sleep(0.5)
 
@@ -95,7 +199,12 @@ class AdvancedDataCollector:
         """Load and validate calibration plan from YAML file"""
         try:
             with open(plan_path, 'r') as f:
-                self.plan = yaml.safe_load(f)
+                loaded_plan = yaml.safe_load(f)
+            if isinstance(loaded_plan, dict):
+                loaded_plan = loaded_plan.get("cases", [loaded_plan])
+            self.plan = loaded_plan or []
+            if not isinstance(self.plan, list):
+                raise yaml.YAMLError("plan must be a case list or a case mapping")
             print(f"OK: Calibration plan loaded from '{plan_path}'")
             return True
         except (FileNotFoundError, yaml.YAMLError) as e:
@@ -166,6 +275,7 @@ class AdvancedDataCollector:
         self.active_case = case_config
         self.active_step_idx = 0
         self.trigger_met_time = None  # Reset trigger time for new case
+        self.dynamic_start_time = 0.0
 
         if not self._prepare_output_file(case_config['case_name']):
             return
@@ -179,13 +289,16 @@ class AdvancedDataCollector:
 
             self.is_collecting = True
             self.step_start_time = cyber_time.Time.now().to_sec()
+            self.dynamic_start_time = time.monotonic()
+            sample_rate = float(case_config.get("sampling_rate_hz", 100.0))
+            loop_period = 1.0 / max(sample_rate, 1.0)
 
             while self.is_collecting and not self.abort_signal_received and cyber.ok(
             ):
                 loop_start_time = cyber_time.Time.now().to_sec()
                 self._state_machine_tick()
-                sleep_time = 0.01 - (cyber_time.Time.now().to_sec() -
-                                     loop_start_time)
+                sleep_time = loop_period - (cyber_time.Time.now().to_sec() -
+                                            loop_start_time)
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
@@ -217,9 +330,13 @@ class AdvancedDataCollector:
 
     def _write_header(self):
         """Write CSV file header"""
-        self.output_file.write(
+        header = (
             "time,speed_mps,ins_speed_mps,imu_accel_y,driving_mode,actual_gear,"
-            "throttle_pct,brake_pct,ctl_throttle,ctl_brake\n")
+            "throttle_pct,brake_pct,ctl_throttle,ctl_brake"
+        )
+        if is_dynamic_case(self.active_case):
+            header += ",command,case_name,domain,mode,actuator,profile_type"
+        self.output_file.write(header + "\n")
 
     def _print_live_status(self):
         """Print and refresh live status line in terminal"""
@@ -238,8 +355,38 @@ class AdvancedDataCollector:
         sys.stdout.write(status_str)
         sys.stdout.flush()
 
+    def _dynamic_profile(self):
+        return self.active_case.get("command_profile", self.active_case.get("profile", {}))
+
+    def _dynamic_command(self, elapsed_sec):
+        profile = self._dynamic_profile()
+        value = evaluate_command_profile(profile, elapsed_sec)
+        actuator = str(self.active_case.get("actuator", "throttle")).lower()
+        value = max(0.0, min(100.0, value))
+        if actuator == "brake":
+            return {"throttle": 0.0, "brake": value}
+        if actuator == "both":
+            return {"throttle": value if value >= 0.0 else 0.0,
+                    "brake": abs(value) if value < 0.0 else 0.0}
+        return {"throttle": value, "brake": 0.0}
+
+    def _dynamic_state_machine_tick(self):
+        """Run a timed profile without consulting vehicle speed triggers."""
+        elapsed = time.monotonic() - self.dynamic_start_time
+        profile = self._dynamic_profile()
+        duration = float(self.active_case.get(
+            "duration_sec", profile.get("duration_sec", 0.0)))
+        if duration > 0.0 and elapsed >= duration:
+            self.is_collecting = False
+            self._send_control_command(safe_stop=True)
+            return
+        self._send_control_command(command_dict=self._dynamic_command(elapsed))
+
     def _state_machine_tick(self):
         """Core logic of the state machine, handles state transitions and command publishing"""
+        if is_dynamic_case(self.active_case):
+            self._dynamic_state_machine_tick()
+            return
         self._print_live_status()
 
         current_step = self.active_case['steps'][self.active_step_idx]
@@ -378,10 +525,21 @@ class AdvancedDataCollector:
         """Write a complete, atomic snapshot of vehicle state to file"""
         vs = self.vehicle_state
         cs = self.last_sent_control
-        self.output_file.write(
+        row = (
             f"{vs.timestamp:.4f},{vs.speed_mps:.4f},{vs.ins_speed_mps:.4f},{vs.imu_accel_y:.4f},"
             f"{vs.driving_mode},{vs.actual_gear},{vs.throttle_pct:.2f},"
-            f"{vs.brake_pct:.2f},{cs.throttle:.2f},{cs.brake:.2f}\n")
+            f"{vs.brake_pct:.2f},{cs.throttle:.2f},{cs.brake:.2f}"
+        )
+        if is_dynamic_case(self.active_case):
+            row += (
+                f",{cs.throttle - cs.brake:.2f},"
+                f"{self.active_case.get('case_name', '')},"
+                f"{self.active_case.get('domain', 'calibration')},"
+                f"{self.active_case.get('mode', 'calibration')},"
+                f"{self.active_case.get('actuator', '')},"
+                f"{self._dynamic_profile().get('type', '')}"
+            )
+        self.output_file.write(row + "\n")
 
 
 def main():
