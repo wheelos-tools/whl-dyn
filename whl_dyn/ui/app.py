@@ -1143,7 +1143,7 @@ with plan_tab:
             dynamic_mode = st.selectbox(
                 "动态类型",
                 ["step", "sweep", "ramp", "pulse", "triangle", "hysteresis",
-                 "single_sine", "chirp", "multi_sine"],
+                 "single_sine", "chirp", "multi_sine", "prbs"],
                 key="dynamic_mode",
             )
             dynamic_actuator = st.selectbox(
@@ -1168,9 +1168,16 @@ with plan_tab:
                     "Sweep 起始频率 (Hz)", 0.001, 100.0, 0.1,
                     key="dynamic_start_frequency"
                 )
+                dynamic_prbs_bit_duration = st.number_input(
+                    "PRBS 比特时长 (s)", 0.01, 10.0, 0.1,
+                    key="dynamic_prbs_bit_duration"
+                )
             dynamic_end_freq = st.number_input(
                 "Sweep 终止频率 (Hz)", 0.001, 100.0, 2.0,
                 key="dynamic_end_frequency"
+            )
+            dynamic_prbs_seed = st.number_input(
+                "PRBS 随机种子", 1, 2147483647, 7, key="dynamic_prbs_seed"
             )
             if st.button("生成动态计划", key="generate_dynamic_plan"):
                 dynamic_args = Namespace(
@@ -1183,6 +1190,8 @@ with plan_tab:
                     sampling_rate_hz=float(dynamic_sample_rate),
                     frequency_start_hz=float(dynamic_start_freq),
                     frequency_end_hz=float(dynamic_end_freq),
+                    bit_duration_sec=float(dynamic_prbs_bit_duration),
+                    prbs_seed=int(dynamic_prbs_seed),
                 )
                 generate_dynamic_plan(dynamic_args)
                 st.success("动态计划已生成: {0}".format(plan_path))
@@ -1676,9 +1685,12 @@ with analysis_tab:
                 st.dataframe(pd.DataFrame([{
                     "dead_time_sec": result["dead_time_sec"],
                     "rise_time_sec": result["rise_time_sec"],
+                    "peak_time_sec": result["peak_time_sec"],
+                    "overshoot_pct": result["overshoot_pct"],
                     "settling_time_sec": result["settling_time_sec"],
                     "gain": result["gain"],
                     "time_constant_sec": result["time_constant_sec"],
+                    "steady_state_error": result["steady_state_error"],
                 }]), use_container_width=True)
                 step_fig = go.Figure()
                 step_fig.add_trace(go.Scatter(
@@ -1709,6 +1721,12 @@ with analysis_tab:
                     yaxis2={"title": "Phase (deg)", "overlaying": "y", "side": "right"},
                 )
                 st.plotly_chart(frequency_fig, use_container_width=True)
+                st.dataframe(pd.DataFrame([{
+                    "bandwidth_hz": result["bandwidth_hz"],
+                    "resonance_peak_hz": result["resonance_peak_hz"],
+                    "resonance_peak_db": result["resonance_peak_db"],
+                    "estimated_delay_sec": result["estimated_delay_sec"],
+                }]), use_container_width=True)
                 st.dataframe(pd.DataFrame({
                     "frequency_hz": result["frequency_hz"],
                     "magnitude_db": result["magnitude_db"],

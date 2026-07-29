@@ -12,9 +12,10 @@
    持续时间，并可复用“开始/停止/重试/清除”。动态采集不依赖 speed trigger，而
    是按单一 profile 随时间发布命令。
 3. 在 **分析** 标签选择采集目录。动态 CSV 自动显示时域响应（Step）或 Bode
-   幅值/相位/coherence（Sine、Chirp、Sweep、Multi-Sine）。Step 还显示 dead
-   time、rise/settling time、gain、time constant 和基础 FOPDT 辨识结果；原有
-   标定曲面、标定表和导出功能不变。
+   幅值/相位/coherence（Sine、Chirp、Sweep、Multi-Sine、PRBS）。Step 还显示
+   dead time、rise/peak/settling time、overshoot、steady-state error、gain、
+   time constant 和基础 FOPDT 辨识结果；频域分析额外给出 -3dB 带宽、共振峰和
+   延迟估计；原有标定曲面、标定表和导出功能不变。
 
 ## YAML 动态 case 示例
 
@@ -24,7 +25,7 @@
   dynamic: true
   domain: frequency_response       # actuator_characterization 或 frequency_response
   mode: sweep                       # step/ramp/pulse/triangle/hysteresis/
-                                   # single_sine/chirp/sweep/multi_sine
+                                   # single_sine/chirp/sweep/multi_sine/prbs
   actuator: throttle                # throttle 或 brake
   sampling_rate_hz: 50
   duration_sec: 20
@@ -42,12 +43,13 @@
 
 动态类型包括 Actuator Characterization 的 `step`、`ramp`、`pulse`、`triangle`、
 `hysteresis`，以及 Frequency Response 的 `single_sine`、`chirp`、`sweep`、
-`multi_sine`。通用 profile 字段有 `type`、`baseline`、`amplitude`、
+`multi_sine`、`prbs`。通用 profile 字段有 `type`、`baseline`、`amplitude`、
 `start_time_sec`、`duration_sec`、`period_sec`、`frequency_hz`、
 `frequency_start_hz`、`frequency_end_hz`、`frequencies_hz`、`amplitudes` 和
 `phases_rad`。Step 使用基线/幅值，Ramp 使用 `ramp_start_sec`/`ramp_end_sec`，
 Pulse 使用 `pulse_duration_sec`，Triangle/Hysteresis 使用 `period_sec`，
-Multi-Sine 使用频率和幅值数组。`profile` 是 `command_profile` 的兼容别名。
+Multi-Sine 使用频率和幅值数组，PRBS 使用 `bit_duration_sec`、`prbs_seed`、
+`prbs_low`、`prbs_high`。`profile` 是 `command_profile` 的兼容别名。
 YAML 顶层仍是 case 列表，因此旧的 `steps` + `trigger` 标定 YAML 无需修改。
 
 ## 输出格式

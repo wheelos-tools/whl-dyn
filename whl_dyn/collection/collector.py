@@ -27,7 +27,7 @@ from modules.common_msgs.localization_msgs import localization_pb2
 # --- Use dataclasses for clear state management ---
 SUPPORTED_DYNAMIC_PROFILES = (
     "step", "ramp", "pulse", "triangle", "hysteresis",
-    "single_sine", "chirp", "sweep", "multi_sine",
+    "single_sine", "chirp", "sweep", "multi_sine", "prbs",
 )
 
 
@@ -37,6 +37,15 @@ def _profile_number(profile, names, default=0.0):
         if name in profile and profile[name] is not None:
             return float(profile[name])
     return float(default)
+
+
+def _prbs_bit(seed, index):
+    """Generate a deterministic pseudo-random binary value in {0, 1}."""
+    value = (int(seed) & 0xFFFFFFFF) ^ ((int(index) + 1) * 0x9E3779B9)
+    value ^= (value << 13) & 0xFFFFFFFF
+    value ^= (value >> 17) & 0xFFFFFFFF
+    value ^= (value << 5) & 0xFFFFFFFF
+    return value & 1
 
 
 def evaluate_command_profile(profile, elapsed_sec):
@@ -108,6 +117,19 @@ def evaluate_command_profile(profile, elapsed_sec):
             phase = 2.0 * math.pi * (f0 * local_t +
                                      0.5 * (f1 - f0) * local_t * local_t / sweep_duration)
         return baseline + amplitude * math.sin(phase)
+    if profile_type == "prbs":
+        bit_duration = max(_profile_number(
+            profile, ("bit_duration_sec", "switch_interval_sec"), 0.1), 1e-6)
+        seed = int(_profile_number(profile, ("prbs_seed", "seed"), 7))
+        low = _profile_number(profile, ("prbs_low", "low", "min_value"), baseline)
+        high = _profile_number(profile, ("prbs_high", "high", "max_value"),
+                               baseline + amplitude)
+        if t < start:
+            return baseline
+        if end > start and t > end:
+            return baseline
+        bit_index = int(max(0.0, math.floor((t - start) / bit_duration)))
+        return high if _prbs_bit(seed, bit_index) else low
     # multi_sine
     frequencies = profile.get("frequencies_hz", profile.get("frequencies", [1.0]))
     amplitudes = profile.get("amplitudes", [amplitude] * len(frequencies))

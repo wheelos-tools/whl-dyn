@@ -26,6 +26,8 @@ class DynamicPlanConfig:
     frequency_hz: float = 0.5
     frequency_start_hz: float = 0.1
     frequency_end_hz: float = 2.0
+    bit_duration_sec: float = 0.1
+    prbs_seed: int = 7
     pulse_duration_sec: float = 1.0
     period_sec: float = 2.0
     frequencies: Optional[List[float]] = None
@@ -68,6 +70,10 @@ def generate_dynamic_plan(args=None, output=None, **kwargs):
         "frequency_hz": float(values.get("frequency_hz", 0.5)),
         "frequency_start_hz": float(values.get("frequency_start_hz", 0.1)),
         "frequency_end_hz": float(values.get("frequency_end_hz", 2.0)),
+        "bit_duration_sec": float(values.get("bit_duration_sec", 0.1)),
+        "prbs_seed": int(values.get("prbs_seed", 7)),
+        "prbs_low": float(values.get("prbs_low", baseline)),
+        "prbs_high": float(values.get("prbs_high", baseline + amplitude)),
         "pulse_duration_sec": float(values.get("pulse_duration_sec", 1.0)),
         "period_sec": float(values.get("period_sec", 2.0)),
     }
@@ -178,7 +184,7 @@ if __name__ == "__main__":
                         help="Generate one open-loop dynamic command-profile case.")
     parser.add_argument('--mode', choices=['step', 'ramp', 'pulse', 'triangle',
                                            'hysteresis', 'single_sine', 'chirp',
-                                           'sweep', 'multi_sine'], default='step')
+                                           'sweep', 'multi_sine', 'prbs'], default='step')
     parser.add_argument('--actuator', choices=['throttle', 'brake'], default='throttle')
     parser.add_argument('--amplitude', type=float, default=20.0)
     parser.add_argument('--baseline', type=float, default=0.0)
@@ -187,6 +193,8 @@ if __name__ == "__main__":
     parser.add_argument('--frequency-start-hz', type=float, default=0.1)
     parser.add_argument('--frequency-end-hz', type=float, default=2.0)
     parser.add_argument('--frequency-hz', type=float, default=0.5)
+    parser.add_argument('--bit-duration-sec', type=float, default=0.1)
+    parser.add_argument('--prbs-seed', type=int, default=7)
 
     # Throttle parameters
     parser.add_argument('--throttle-min', type=int, default=0, help="Minimum throttle command (%) to test.")

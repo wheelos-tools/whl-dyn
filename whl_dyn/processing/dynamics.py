@@ -143,7 +143,22 @@ def analyze_step_response(df, input_col=None, output_col=None):
             break
     dead = first_at(0.1)
     tau = first_at(1.0 - np.exp(-1.0))
+    if len(after_norm):
+        peak_index = int(np.argmax(after_norm))
+        peak_time = float(after_t[peak_index])
+        peak_output = float(y[index + peak_index])
+        overshoot = max(0.0, (float(after_norm[peak_index]) - 1.0) * 100.0)
+    else:
+        peak_time = None
+        peak_output = float(final_y)
+        overshoot = 0.0
     model = identify_fopdt(df, input_col, output_col, index)
+    model_ss = float(model["offset"] + model["gain"] * delta_u)
+    steady_state_error = float(final_y - model_ss)
+    steady_state_error_pct = (
+        100.0 * steady_state_error / abs(delta_y)
+        if abs(delta_y) > 1e-12 else 0.0
+    )
     return {
         "input_signal": in_col,
         "output_signal": out_col,
@@ -155,8 +170,13 @@ def analyze_step_response(df, input_col=None, output_col=None):
         "gain": float(delta_y / delta_u),
         "dead_time_sec": dead,
         "rise_time_sec": rise,
+        "peak_time_sec": peak_time,
+        "peak_output": peak_output,
+        "overshoot_pct": overshoot,
         "settling_time_sec": settling,
         "time_constant_sec": tau,
+        "steady_state_error": steady_state_error,
+        "steady_state_error_pct": steady_state_error_pct,
         "fopdt": model,
         "data": {
             "time": t.tolist(),
@@ -195,20 +215,46 @@ def analyze_frequency_response(df, input_col=None, output_col=None,
     pxy = pxy[valid]
     coherence = coherence[valid]
     response = pxy / pxx
-    phase_deg = np.degrees(np.unwrap(np.angle(response)))
+    phase_rad = np.unwrap(np.angle(response))
+    phase_deg = np.degrees(phase_rad)
+    magnitude = np.abs(response)
+    magnitude_db = 20.0 * np.log10(np.maximum(magnitude, np.finfo(float).eps))
+
+    resonance_index = int(np.argmax(magnitude))
+    resonance_peak_db = float(magnitude_db[resonance_index])
+    resonance_peak_hz = float(frequencies[resonance_index])
+    bandwidth_hz = None
+    if len(magnitude_db) > 1:
+        reference_db = float(magnitude_db[0])
+        cutoff_db = reference_db - 3.0
+        below = np.flatnonzero(magnitude_db <= cutoff_db)
+        if len(below):
+            bandwidth_hz = float(frequencies[int(below[0])])
+
+    delay_sec = None
+    coherent = np.flatnonzero(coherence >= 0.6)
+    if len(coherent):
+        delay_index = int(coherent[0])
+    else:
+        delay_index = 0
+    if frequencies[delay_index] > 0.0:
+        delay_sec = float(-phase_rad[delay_index] / (2.0 * np.pi * frequencies[delay_index]))
     return {
         "input_signal": in_col,
         "output_signal": out_col,
         "sampling_rate_hz": fs,
         "frequency_hz": frequencies.tolist(),
-        "magnitude": np.abs(response).tolist(),
-        "magnitude_db": (20.0 * np.log10(np.maximum(np.abs(response),
-                                                     np.finfo(float).eps))).tolist(),
+        "magnitude": magnitude.tolist(),
+        "magnitude_db": magnitude_db.tolist(),
         "phase_deg": phase_deg.astype(float).tolist(),
         "coherence": coherence.tolist(),
+        "bandwidth_hz": bandwidth_hz,
+        "resonance_peak_db": resonance_peak_db,
+        "resonance_peak_hz": resonance_peak_hz,
+        "estimated_delay_sec": delay_sec,
         "data": {
             "frequency_hz": frequencies.tolist(),
-            "magnitude": np.abs(response).tolist(),
+            "magnitude": magnitude.tolist(),
             "phase_deg": phase_deg.tolist(),
             "coherence": coherence.tolist(),
         },
@@ -235,7 +281,7 @@ def analyze_dynamic(df, mode=None, input_col=None, output_col=None,
         mode_name = str(df["mode"].iloc[0]).lower()
     if mode_name in ("step",):
         return {"kind": "step", "result": analyze_step_response(df, input_col, output_col)}
-    if mode_name in ("single_sine", "chirp", "sweep", "multi_sine"):
+    if mode_name in ("single_sine", "chirp", "sweep", "multi_sine", "prbs"):
         return {"kind": "frequency",
                 "result": analyze_frequency_response(df, input_col, output_col,
                                                      sampling_rate_hz)}
