@@ -1,0 +1,15 @@
+- case_name: closed_loop_R50_left
+  domain: vehicle_dynamics
+  phase: closed_loop_constant_curvature
+  test_type: clothoid_circle_tracking
+  duration_sec: 40.0
+  trajectory:
+    type: clothoid_circle
+    radius_m: 50.0
+    speed_mps: 2.0
+    entry_length_m: 15.0
+    arc_angle_rad: 1.57
+    exit_length_m: 15.0
+    direction: 1.0
+    horizon_sec: 8.0
+    publish_rate_hz: 20.0

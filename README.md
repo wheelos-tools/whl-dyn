@@ -1,4 +1,4 @@
-# whl_dyn — Vehicle Longitudinal Dynamics Calibration (Quick Start)
+# whl_dyn — Vehicle Dynamics Calibration (Quick Start)
 
 Overview
 
@@ -29,6 +29,17 @@ Repository layout (high level)
 - whl_dyn/collection — data collector & CyberRT integration
 - whl_dyn/processing — filtering, outlier detection, interpolation
 - whl_dyn/ui — Streamlit dashboard binding all modules
+
+Lateral vehicle-dynamics tests are collection-first and support configurable
+speed-held Chirp/Sweep and PRBS experiments.  They measure steering feedback
+to yaw rate and lateral acceleration, preserve every run in a unique
+timestamped directory, then generate Bode metrics and plots offline.  See
+[`docs/lateral_vehicle_dynamics.md`](docs/lateral_vehicle_dynamics.md) for
+the signal mapping, safety gates, UI/CLI commands and test workflow.
+
+For the phase-1 open-loop identification, phase-2 steady-state circles and
+phase-3 continuous Clothoid-to-circle closed-loop tests, see
+[`docs/handling_test_phases.md`](docs/handling_test_phases.md).
 
 How this README helps an agent learn
 

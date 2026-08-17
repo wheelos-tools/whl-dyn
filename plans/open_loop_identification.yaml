@@ -1,0 +1,24 @@
+- case_name: steering_step_+2
+  domain: vehicle_dynamics
+  phase: open_loop_identification
+  test_type: steering_step
+  actuator: steering
+  duration_sec: 8.0
+  sampling_rate_hz: 100.0
+  input_signals: [steering_command, steering_feedback]
+  output_signals: [yaw_rate_radps, lateral_accel_mps2]
+  speed_gate: {min_mps: 0.0, max_mps: 3.0, target_mps: 2.0, tolerance_mps: 0.15, stable_duration_sec: 3.0, max_wait_sec: 30.0}
+  safety_limits: {max_abs_steering: 20.0, max_steering_rate: 30.0}
+  command_profile: {type: step, baseline: 0.0, amplitude: 2.0, start_time_sec: 0.0}
+- case_name: steering_slow_ramp_+2
+  domain: vehicle_dynamics
+  phase: open_loop_identification
+  test_type: steering_deadzone_rate
+  actuator: steering
+  duration_sec: 8.0
+  sampling_rate_hz: 100.0
+  input_signals: [steering_command, steering_feedback]
+  output_signals: [yaw_rate_radps, lateral_accel_mps2]
+  speed_gate: {min_mps: 0.0, max_mps: 3.0, target_mps: 2.0, tolerance_mps: 0.15, stable_duration_sec: 3.0, max_wait_sec: 30.0}
+  safety_limits: {max_abs_steering: 20.0, max_steering_rate: 30.0}
+  command_profile: {type: ramp, baseline: -2.0, target: 2.0, ramp_start_sec: 0.0, ramp_end_sec: 8.0}

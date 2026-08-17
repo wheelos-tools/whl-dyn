@@ -23,6 +23,7 @@ from whl_dyn.processing.exporter import Exporter
 from whl_dyn.processing.dynamics import is_dynamic_log
 from whl_dyn.processing.metrics import MetricsEvaluator
 from whl_dyn.processing.dynamics import analyze_dynamic, load_dynamic_csv
+from whl_dyn.ui.lateral import render_lateral_dynamics
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -1055,13 +1056,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-plan_tab, collect_tab, analysis_tab = st.tabs(
+plan_tab, collect_tab, lateral_tab, analysis_tab = st.tabs(
     [
         "📋 ① 生成计划",
         "🚗 ② 数据采集",
-        "📊 ③ 分析",
+        "🧭 ③ 横向动力学",
+        "📊 ④ 分析",
     ]
 )
+
+with lateral_tab:
+    render_lateral_dynamics(RUNTIME_DIR)
 
 with plan_tab:
     # 修复text_input label的margin-bottom对齐问题

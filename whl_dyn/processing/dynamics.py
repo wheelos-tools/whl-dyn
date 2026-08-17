@@ -54,7 +54,9 @@ def is_dynamic_log(df):
             return True
     if "domain" in df.columns:
         domain_value = str(df["domain"].iloc[0]).strip().lower()
-        if domain_value in ("actuator_characterization", "frequency_response"):
+        if domain_value in (
+                "actuator_characterization", "frequency_response",
+                "vehicle_dynamics"):
             return True
     return False
 
