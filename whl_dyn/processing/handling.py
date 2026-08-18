@@ -11,11 +11,27 @@ def _finite(frame, columns):
     return values
 
 
+def _aligned_frame(frame):
+    """Keep only collection rows that pass the persisted time-alignment gate."""
+
+    if "time_aligned" not in frame:
+        return frame
+    aligned_flag = frame["time_aligned"]
+    if aligned_flag.dtype == bool:
+        mask = aligned_flag
+    else:
+        mask = aligned_flag.astype(str).str.lower().isin(("true", "1", "yes"))
+    aligned = frame.loc[mask].copy()
+    if aligned.empty:
+        raise ValueError("no time-aligned samples remain")
+    return aligned
+
+
 def tracking_metrics(frame, lateral_column="lateral_error_m",
                      heading_column="heading_error_rad"):
     """Calculate closed-loop lateral and heading error summary metrics."""
 
-    values = _finite(frame, [lateral_column, heading_column])
+    values = _finite(_aligned_frame(frame), [lateral_column, heading_column])
     lateral = values[lateral_column].to_numpy(dtype=float)
     heading = values[heading_column].to_numpy(dtype=float)
     return {
@@ -36,7 +52,7 @@ def steady_state_handling_metrics(frame, steering_rad_column,
     """Fit ``delta - L*kappa = Ku*ay + offset`` on a selected steady window."""
 
     columns = [steering_rad_column, kappa_column, lateral_accel_column]
-    values = _finite(frame, columns)
+    values = _finite(_aligned_frame(frame), columns)
     steering = values[steering_rad_column].to_numpy(dtype=float)
     kappa = values[kappa_column].to_numpy(dtype=float)
     lateral_accel = values[lateral_accel_column].to_numpy(dtype=float)
@@ -67,7 +83,7 @@ def select_steady_state_samples(frame, speed_target_mps, speed_tolerance_mps,
     required = ("elapsed_sec", "case_phase", "chassis_speed_mps")
     if any(column not in frame for column in required):
         raise ValueError("steady-state selection requires collected case phase and speed")
-    values = frame.copy()
+    values = _aligned_frame(frame)
     elapsed = pd.to_numeric(values["elapsed_sec"], errors="coerce")
     speed = pd.to_numeric(values["chassis_speed_mps"], errors="coerce")
     steady = values["case_phase"].astype(str).eq("steady")
@@ -103,7 +119,7 @@ def fixed_steering_steady_state_metrics(
         steering_wheel_column, speed_column, yaw_rate_column,
         lateral_accel_column,
     )
-    values = _finite(frame, list(required)).copy()
+    values = _finite(_aligned_frame(frame), list(required)).copy()
     speed = values[speed_column].to_numpy(dtype=float)
     yaw_rate = values[yaw_rate_column].to_numpy(dtype=float)
     lateral_accel = values[lateral_accel_column].to_numpy(dtype=float)

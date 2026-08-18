@@ -30,7 +30,9 @@ whl-dyn validate-open-loop --plan open_loop_identification.yaml \
 ```
 
 The resulting step and slow-ramp cases are collected with
-`whl-dyn collect-lateral`.  The plan covers positive and negative steering:
+`whl-dyn collect-lateral`. Each persisted row is a fixed-time snapshot with
+`sample_time_sec`, source timestamps, source ages, `alignment_skew_sec`, and a
+`time_aligned` flag. The plan covers positive and negative steering:
 
 ```text
 step:      command -> front/rear feedback -> yaw rate -> lateral acceleration
@@ -170,8 +172,9 @@ mapping columns. A missing column is written as unavailable; it is never
 treated as proof that the vehicle remained stable. Configure
 `steering_feedback` as the actual steering-wheel angle for this test, and
 map a separate effective road-wheel angle column when calculating vehicle
-gains or understeer gradient. The analyzer does not yet aggregate multiple
-runs or infer front/rear axle saturation.
+gains or understeer gradient. The steady-state and tracking processors filter
+out rows whose `time_aligned` flag is false. The analyzer does not yet
+aggregate multiple runs or infer front/rear axle saturation.
 
 ## Phase 3: closed-loop Clothoid-to-circle tracking
 
@@ -189,6 +192,13 @@ The runner publishes `ADCTrajectory` directly to `/apollo/planning`.  It must
 be the **only publisher** on that topic for the vehicle under test; stop or
 isolate the ordinary planning publisher first.  It is not a RoutingRequest
 and does not invoke `GenerateRefLineFromRawPath`.
+
+The runner records one fixed-rate snapshot per published planning window, not
+one row per callback. Each row contains `sample_time_sec`, localization,
+chassis, and control source timestamps, source ages, `alignment_skew_sec`, and
+`time_aligned`. The default maximum source-time skew is 20 ms and is stored in
+the generated case as `max_alignment_skew_sec`. Reports must reject rows whose
+flag is false.
 
 The route is:
 
@@ -218,7 +228,9 @@ Reference: Apollo
 especially `ComputeStitchingTrajectory` and `ComputeReinitStitchingTrajectory`.
 
 Raw output records localization, chassis and control/debug samples in a unique
-run directory.  Apply `tracking_metrics` only to the selected steady segment:
+run directory as fixed-rate snapshots rather than one row per asynchronous
+callback. Each row retains source timestamps and alignment diagnostics.
+Apply `tracking_metrics` only to the selected steady segment:
 
 ```text
 ey MAE / RMSE / P95 / Peak

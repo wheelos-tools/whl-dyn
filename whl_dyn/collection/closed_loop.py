@@ -1,6 +1,7 @@
 """Direct planning-trajectory execution for closed-loop handling tests."""
 
 import math
+import threading
 import time
 
 from whl_dyn.collection.run_storage import RunStorage
@@ -38,6 +39,8 @@ class ClosedLoopTrajectoryRunner:
         self.planning_topic = planning_topic
         self.control_topic = control_topic
         self._latest_localization = None
+        self._latest = {}
+        self._lock = threading.Lock()
         self._samples = []
 
     def subscribe(self):
@@ -56,9 +59,10 @@ class ClosedLoopTrajectoryRunner:
     def _on_localization(self, message):
         self._latest_localization = message
         pose = message.pose
-        self._samples.append({
-            "source": "localization",
+        self._put({
             "source_time_sec": float(
+                message.measurement_time or message.header.timestamp_sec),
+            "localization_source_time_sec": float(
                 message.measurement_time or message.header.timestamp_sec),
             "x": float(pose.position.x),
             "y": float(pose.position.y),
@@ -68,9 +72,8 @@ class ClosedLoopTrajectoryRunner:
         })
 
     def _on_chassis(self, message):
-        self._samples.append({
-            "source": "chassis",
-            "source_time_sec": float(message.header.timestamp_sec),
+        self._put({
+            "chassis_source_time_sec": float(message.header.timestamp_sec),
             "speed_mps": float(message.speed_mps),
             "driving_mode": int(message.driving_mode),
             "steering_feedback": float(message.steering_percentage),
@@ -78,9 +81,8 @@ class ClosedLoopTrajectoryRunner:
 
     def _on_control(self, message):
         debug = getattr(getattr(message, "debug", None), "simple_mpc_debug", None)
-        self._samples.append({
-            "source": "control",
-            "source_time_sec": float(message.header.timestamp_sec),
+        self._put({
+            "control_source_time_sec": float(message.header.timestamp_sec),
             "steering_command": float(message.steering_target),
             "control_speed_target_mps": float(message.speed),
             "lateral_error_m": float(getattr(debug, "lateral_error", float("nan"))),
@@ -91,6 +93,44 @@ class ClosedLoopTrajectoryRunner:
             "steer_feedback_control": float(
                 getattr(debug, "steer_angle_feedback", float("nan"))),
         })
+
+    def _put(self, values):
+        with self._lock:
+            self._latest.update(values)
+
+    def _aligned_snapshot(self, max_alignment_skew_sec=0.02):
+        now = time.time()
+        with self._lock:
+            sample = dict(self._latest)
+        source_times = [
+            float(sample[name]) for name in (
+                "localization_source_time_sec",
+                "chassis_source_time_sec",
+                "control_source_time_sec",
+            ) if name in sample
+        ]
+        sample["sample_time_sec"] = now
+        sample["collector_time_sec"] = now
+        if source_times:
+            sample["source_time_min_sec"] = min(source_times)
+            sample["source_time_max_sec"] = max(source_times)
+            sample["alignment_skew_sec"] = max(source_times) - min(source_times)
+            sample["time_aligned"] = (
+                len(source_times) == 3 and sample["alignment_skew_sec"] <=
+                float(max_alignment_skew_sec))
+            for name in (
+                    "localization_source_time_sec",
+                    "chassis_source_time_sec",
+                    "control_source_time_sec"):
+                source_time = sample.get(name)
+                sample[name.replace("_source_time_sec", "_age_sec")] = (
+                    now - float(source_time) if source_time is not None else float("nan"))
+        else:
+            sample["source_time_min_sec"] = float("nan")
+            sample["source_time_max_sec"] = float("nan")
+            sample["alignment_skew_sec"] = float("nan")
+            sample["time_aligned"] = False
+        return sample
 
     def _wait_for_localization(self, timeout_sec):
         deadline = time.monotonic() + float(timeout_sec)
@@ -127,6 +167,11 @@ class ClosedLoopTrajectoryRunner:
                     path, elapsed, trajectory["speed_mps"],
                     trajectory.get("horizon_sec", 8.0),
                     planning_cycle_time_sec=publish_period)
+                sample = self._aligned_snapshot(
+                    case.get("max_alignment_skew_sec", 0.02))
+                sample["elapsed_sec"] = elapsed
+                sample["sample_index"] = len(self._samples)
+                self._samples.append(sample)
                 next_tick += publish_period
                 time.sleep(max(0.0, next_tick - time.monotonic()))
         except BaseException as error:

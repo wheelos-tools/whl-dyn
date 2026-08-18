@@ -204,6 +204,7 @@ def generate_closed_loop_curve_plan(config=None, output=None, **kwargs):
         "phase": "closed_loop_constant_curvature",
         "test_type": "clothoid_circle_tracking",
         "duration_sec": duration,
+        "max_alignment_skew_sec": 0.02,
         "trajectory": {
             "type": "clothoid_circle",
             "radius_m": radius,

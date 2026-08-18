@@ -142,18 +142,44 @@ class LateralSignalCollector:
         self._put(localization_signals(message, time.time()))
 
     def snapshot(self):
-        """Return a timestamped flat sample and source-age diagnostics."""
+        """Return one fixed-time snapshot with alignment diagnostics.
+
+        Values are the newest received values at the snapshot instant. Source
+        timestamps and the maximum source-time spread are persisted so offline
+        processing can reject rows that exceed the configured skew.
+        """
 
         now_wall = time.time()
         now_mono = time.monotonic()
         with self._lock:
             sample = dict(self._latest)
         sample["collector_time_sec"] = now_wall
+        sample["sample_time_sec"] = now_wall
         sample["collector_monotonic_sec"] = now_mono
+        source_times = []
         for source in ("localization", "chassis", "chassis_detail"):
             source_time = sample.get("{0}_source_time_sec".format(source))
+            if source_time:
+                source_times.append(float(source_time))
             sample["{0}_age_sec".format(source)] = (
                 now_wall - float(source_time) if source_time else float("nan"))
+        if source_times:
+            sample["source_time_min_sec"] = min(source_times)
+            sample["source_time_max_sec"] = max(source_times)
+            sample["alignment_skew_sec"] = max(source_times) - min(source_times)
+            required_sources = ["localization_source_time_sec",
+                                "chassis_source_time_sec"]
+            if "steering_feedback" in sample:
+                required_sources.append("chassis_detail_source_time_sec")
+            sample["time_aligned"] = (
+                all(name in sample for name in required_sources) and
+                sample["alignment_skew_sec"] <= float(
+                    self.config.get("max_alignment_skew_sec", 0.02)))
+        else:
+            sample["source_time_min_sec"] = float("nan")
+            sample["source_time_max_sec"] = float("nan")
+            sample["alignment_skew_sec"] = float("nan")
+            sample["time_aligned"] = False
         return sample
 
     def wait_for_sources(self, timeout_sec, require_steering_feedback=False):
@@ -320,6 +346,7 @@ class LateralSignalCollector:
                     previous_command = command
                 sample = self.snapshot()
                 sample["elapsed_sec"] = elapsed
+                sample["sample_index"] = len(samples)
                 sample["steering_command"] = previous_command if execute else float("nan")
                 sample["case_phase"] = _case_phase(profile, elapsed)
                 samples.append(sample)

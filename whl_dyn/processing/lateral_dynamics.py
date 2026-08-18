@@ -47,7 +47,17 @@ def analyze_lateral_frequency_response(frame, steering_column=None,
 
     if time_column not in frame:
         raise ValueError("samples require {0}".format(time_column))
-    working = frame.copy()
+    if "time_aligned" in frame:
+        aligned_flag = frame["time_aligned"]
+        if aligned_flag.dtype == bool:
+            mask = aligned_flag
+        else:
+            mask = aligned_flag.astype(str).str.lower().isin(("true", "1", "yes"))
+        working = frame.loc[mask].copy()
+        if working.empty:
+            raise ValueError("no time-aligned samples remain")
+    else:
+        working = frame.copy()
     input_name, steering = _actual_steering(working, steering_column)
     working["steering_feedback"] = pd.to_numeric(steering, errors="coerce")
     outputs = {

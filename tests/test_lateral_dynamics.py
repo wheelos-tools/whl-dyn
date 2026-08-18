@@ -79,6 +79,24 @@ def test_speed_target_requires_its_own_tolerance_band():
     assert not collector._speed_at_target({"target_mps": 2.0, "tolerance_mps": 0.15})
 
 
+def test_snapshot_reports_source_alignment_and_requires_feedback_source():
+    collector = LateralSignalCollector(None, {"max_alignment_skew_sec": 0.02})
+    collector._latest.update({
+        "localization_source_time_sec": 10.000,
+        "chassis_source_time_sec": 10.005,
+        "chassis_detail_source_time_sec": 10.010,
+        "steering_feedback": 0.1,
+    })
+    aligned = collector.snapshot()
+    assert aligned["time_aligned"]
+    assert np.isclose(aligned["alignment_skew_sec"], 0.01)
+
+    collector._latest["chassis_detail_source_time_sec"] = 10.050
+    not_aligned = collector.snapshot()
+    assert not not_aligned["time_aligned"]
+    assert np.isclose(not_aligned["alignment_skew_sec"], 0.05)
+
+
 def test_timestamped_storage_does_not_overwrite_same_case(tmp_path):
     first = RunStorage(tmp_path, "chirp", {"run": 1})
     second = RunStorage(tmp_path, "chirp", {"run": 2})
@@ -128,3 +146,19 @@ def test_lateral_analysis_writes_two_bode_reports(tmp_path):
     assert (output / "bode_yaw_rate.csv").exists()
     assert (output / "bode_lateral_acceleration.png").exists()
     assert "bandwidth_hz" in metrics["responses"]["yaw_rate"]
+
+
+def test_lateral_analysis_rejects_unaligned_samples():
+    frame = pd.DataFrame({
+        "elapsed_sec": [0.0, 0.01, 0.02, 0.03],
+        "steering_feedback": [0.0, 1.0, 0.0, -1.0],
+        "yaw_rate_radps": [0.0, 0.2, 0.0, -0.2],
+        "lateral_accel_mps2": [0.0, 0.5, 0.0, -0.5],
+        "time_aligned": [False, False, False, False],
+    })
+    try:
+        analyze_lateral_frequency_response(frame, sampling_rate_hz=100.0)
+    except ValueError as error:
+        assert "time-aligned" in str(error)
+    else:
+        raise AssertionError("unaligned samples were accepted")

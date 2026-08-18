@@ -79,9 +79,10 @@ max_feedback_age_sec: 0.2
 ```
 
 Localization supplies `yaw_rate_radps` from vehicle-frame angular velocity Z
-and `lateral_accel_mps2` from vehicle-frame linear acceleration X.  The raw
-file also retains source and collector timestamps, signal ages, chassis speed,
-driving mode, raw steering command/feedback, and roll.
+and `lateral_accel_mps2` from vehicle-frame linear acceleration X.  file also retains source and collector timestamps, signal ages, sample time,
+alignment skew and a `time_aligned` flag, chassis speed, driving mode, raw
+steering command/feedback, and roll. Offline analysis should filter on the
+alignment flag and configured skew threshold before estimating phase or delay.
 
 ## Collect
 
@@ -174,4 +175,6 @@ analysis/bode_lateral_acceleration.png
 
 Each response reports Gain, Phase, coherence, -3 dB bandwidth, resonance peak
 and estimated delay.  Treat low-coherence frequencies and receive-time-only
-logs as diagnostic evidence rather than calibrated physical delay.
+logs as diagnostic evidence rather than calibrated physical delay. When a run
+contains `time_aligned`, the analyzer rejects rows whose flag is false and
+fails if no aligned rows remain.

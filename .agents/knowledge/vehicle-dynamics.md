@@ -13,6 +13,8 @@ trajectory, or test acceptance rule.
   repeat matrices; it is not a fixed-radius controller.
 - Phase 3 publishes an immutable straight-to-clothoid-to-arc reference and
   stops at the arc endpoint.
+- Phase 1, Phase 2, and Phase 3 collection rows retain a fixed sample time,
+  source timestamps, source ages, alignment skew, and a `time_aligned` flag.
 - Vehicle-specific signals, limit thresholds, and unit conversions must remain
   outside the generic plan and processing modules.
 - Assessment conclusions and missing acceptance criteria belong in the
