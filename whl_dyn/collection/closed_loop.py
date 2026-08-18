@@ -18,9 +18,10 @@ def build_path_from_case(trajectory, x0, y0, theta0, duration_sec):
         path = ClothoidCirclePath(
             x0, y0, theta0, trajectory["radius_m"],
             trajectory["entry_length_m"], trajectory["arc_angle_rad"],
-            trajectory["exit_length_m"], trajectory.get("direction", 1.0))
-        required_length = float(trajectory["speed_mps"]) * (
-            float(duration_sec) + float(trajectory.get("horizon_sec", 8.0)))
+            trajectory.get("exit_length_m", 0.0), trajectory.get("direction", 1.0),
+            trajectory.get("straight_entry_length_m", 0.0),
+            trajectory.get("straight_exit_length_m", 0.0))
+        required_length = float(trajectory["speed_mps"]) * float(duration_sec)
         if required_length > path.length_m:
             raise ValueError(
                 "clothoid path is shorter than test duration plus horizon")
@@ -124,7 +125,8 @@ class ClosedLoopTrajectoryRunner:
                 elapsed = time.monotonic() - start
                 publisher.publish(
                     path, elapsed, trajectory["speed_mps"],
-                    trajectory.get("horizon_sec", 8.0))
+                    trajectory.get("horizon_sec", 8.0),
+                    planning_cycle_time_sec=publish_period)
                 next_tick += publish_period
                 time.sleep(max(0.0, next_tick - time.monotonic()))
         except BaseException as error:

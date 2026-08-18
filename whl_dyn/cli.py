@@ -8,6 +8,7 @@ It correctly launches streamlit without triggering warnings.
 
 import os
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -62,10 +63,29 @@ def _parser():
     circles.add_argument("--steering-ramp-rate", type=float, default=0.5)
     circles.add_argument("--max-lateral-accel-mps2", type=float, default=1.5)
 
+    steady = subcommands.add_parser("analyze-steady-state")
+    steady.add_argument("--run-dir", required=True)
+    steady.add_argument("--target-speed-mps", required=True, type=float)
+    steady.add_argument("--speed-tolerance-mps", type=float, default=0.15)
+    steady.add_argument("--steering-wheel-column", default="steering_feedback")
+    steady.add_argument("--road-wheel-column")
+    steady.add_argument("--sideslip-column", default="sideslip_rad")
+    steady.add_argument("--esc-column", default="esc_active")
+    steady.add_argument("--wheel-slip-column", default="wheel_slip_ratio")
+    steady.add_argument("--wheelbase-m", type=float)
+    steady.add_argument("--max-abs-sideslip-rad", type=float)
+    steady.add_argument("--max-sideslip-rate-radps", type=float)
+    steady.add_argument("--max-yaw-rate-error-radps", type=float)
+    steady.add_argument("--max-abs-wheel-slip", type=float)
+
     curve = subcommands.add_parser("plan-closed-loop")
     curve.add_argument("--output", default="closed_loop_curve.yaml")
     curve.add_argument("--radius-m", type=float, default=50.0)
     curve.add_argument("--speed-mps", type=float, default=2.0)
+    curve.add_argument("--straight-entry-length-m", type=float, default=20.0)
+    curve.add_argument("--entry-length-m", type=float, default=15.0)
+    curve.add_argument("--arc-angle-rad", type=float, default=1.57)
+    curve.add_argument("--duration-sec", type=float, default=0.0)
     curve.add_argument("--direction", choices=("left", "right"), default="left")
 
     run_curve = subcommands.add_parser("run-closed-loop")
@@ -186,7 +206,7 @@ def main():
 
     known_commands = {
         "plan-lateral", "collect-lateral", "validate-open-loop", "analyze-lateral", "plan-open-loop",
-        "plan-circles", "plan-closed-loop", "run-closed-loop",
+        "plan-circles", "analyze-steady-state", "plan-closed-loop", "run-closed-loop",
     }
     if len(sys.argv) > 1 and sys.argv[1] in known_commands:
         args = _parser().parse_args()
@@ -217,6 +237,32 @@ def main():
         if args.command == "collect-lateral":
             _run_lateral_collection(args)
             return
+        if args.command == "analyze-steady-state":
+            import pandas as pd
+            from whl_dyn.processing.handling import (
+                fixed_steering_steady_state_metrics,
+                select_steady_state_samples,
+            )
+
+            run_dir = Path(args.run_dir)
+            selected = select_steady_state_samples(
+                pd.read_csv(run_dir / "samples.csv"),
+                args.target_speed_mps, args.speed_tolerance_mps)
+            metrics = fixed_steering_steady_state_metrics(
+                selected, steering_wheel_column=args.steering_wheel_column,
+                road_wheel_column=args.road_wheel_column,
+                sideslip_column=args.sideslip_column, esc_column=args.esc_column,
+                wheel_slip_column=args.wheel_slip_column, wheelbase_m=args.wheelbase_m,
+                max_abs_sideslip_rad=args.max_abs_sideslip_rad,
+                max_sideslip_rate_radps=args.max_sideslip_rate_radps,
+                max_yaw_rate_error_radps=args.max_yaw_rate_error_radps,
+                max_abs_wheel_slip=args.max_abs_wheel_slip)
+            output = run_dir / "analysis"
+            output.mkdir(exist_ok=True)
+            path = output / "steady_state_metrics.json"
+            path.write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n")
+            print(path)
+            return
         if args.command == "validate-open-loop":
             _validate_open_loop(args)
             return
@@ -244,7 +290,11 @@ def main():
 
             generate_closed_loop_curve_plan(
                 output=args.output, radius_m=args.radius_m,
-                speed_mps=args.speed_mps, direction=args.direction)
+                speed_mps=args.speed_mps,
+                straight_entry_length_m=args.straight_entry_length_m,
+                entry_length_m=args.entry_length_m,
+                arc_angle_rad=args.arc_angle_rad,
+                duration_sec=args.duration_sec, direction=args.direction)
             print(args.output)
             return
         if args.command == "run-closed-loop":

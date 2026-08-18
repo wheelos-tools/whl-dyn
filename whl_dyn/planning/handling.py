@@ -169,10 +169,10 @@ class ClosedLoopCurveConfig:
     output: str = "closed_loop_curve.yaml"
     radius_m: float = 50.0
     speed_mps: float = 2.0
+    straight_entry_length_m: float = 20.0
     entry_length_m: float = 15.0
     arc_angle_rad: float = 1.57
-    exit_length_m: float = 15.0
-    duration_sec: float = 40.0
+    duration_sec: float = 0.0
     direction: str = "left"
 
 
@@ -184,22 +184,33 @@ def generate_closed_loop_curve_plan(config=None, output=None, **kwargs):
     direction = str(values["direction"]).lower()
     if direction not in ("left", "right"):
         raise ValueError("direction must be left or right")
-    if float(values["radius_m"]) <= 0.0 or float(values["speed_mps"]) <= 0.0:
+    radius = float(values["radius_m"])
+    speed = float(values["speed_mps"])
+    if radius <= 0.0 or speed <= 0.0:
         raise ValueError("radius and speed must be positive")
+    straight_entry = float(values["straight_entry_length_m"])
+    entry_length = float(values["entry_length_m"])
+    arc_angle = float(values["arc_angle_rad"])
+    if straight_entry < 0.0 or entry_length <= 0.0 or arc_angle <= 0.0:
+        raise ValueError("straight entry must be non-negative and curve lengths positive")
+    transition_distance = straight_entry + entry_length + radius * arc_angle
+    duration = float(values["duration_sec"])
+    if duration <= 0.0:
+        duration = transition_distance / speed
     case = {
         "case_name": "closed_loop_R{0:g}_{1}".format(
             float(values["radius_m"]), direction),
         "domain": "vehicle_dynamics",
         "phase": "closed_loop_constant_curvature",
         "test_type": "clothoid_circle_tracking",
-        "duration_sec": float(values["duration_sec"]),
+        "duration_sec": duration,
         "trajectory": {
             "type": "clothoid_circle",
-            "radius_m": float(values["radius_m"]),
-            "speed_mps": float(values["speed_mps"]),
-            "entry_length_m": float(values["entry_length_m"]),
-            "arc_angle_rad": float(values["arc_angle_rad"]),
-            "exit_length_m": float(values["exit_length_m"]),
+            "radius_m": radius,
+            "speed_mps": speed,
+            "straight_entry_length_m": straight_entry,
+            "entry_length_m": entry_length,
+            "arc_angle_rad": arc_angle,
             "direction": 1.0 if direction == "left" else -1.0,
             "horizon_sec": 8.0,
             "publish_rate_hz": 20.0,

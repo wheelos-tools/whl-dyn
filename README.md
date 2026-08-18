@@ -1,50 +1,36 @@
-# whl_dyn — Vehicle Dynamics Calibration (Quick Start)
+# whl-dyn
 
-Overview
+`whl-dyn` is a Python toolkit for vehicle actuator calibration and lateral
+vehicle-dynamics tests. It provides plan generation, CyberRT collection,
+offline analysis, and a Streamlit workbench.
 
-whl_dyn is a Python toolkit and Streamlit workbench for generating calibration plans, collecting vehicle actuator data, processing signals, and exporting calibration tables and diagnostics. The detailed design notes were preserved in DESIGN.md.
+## Install and run
 
-Quick start (local / in-container)
+```bash
+python3 -m pip install -e .
+pytest -q
+streamlit run whl_dyn/ui/app.py
+```
 
-1. Install dependencies:
+The CLI entry point is `whl-dyn`; use `python3 -m whl_dyn.cli --help` when
+developing from a checkout.
 
-    pip install -r requirements.txt
+## Documentation
 
-2. Run the Streamlit workbench (from repo root):
+| Topic | Document |
+| --- | --- |
+| Installation and commands | [`docs/user_guide.md`](docs/user_guide.md) |
+| Lateral open-loop frequency tests | [`docs/lateral_vehicle_dynamics.md`](docs/lateral_vehicle_dynamics.md) |
+| Phase 1--3 handling workflow | [`docs/handling_test_phases.md`](docs/handling_test_phases.md) |
+| Implemented test inventory | [`docs/current_test_cases.md`](docs/current_test_cases.md) |
+| Capability assessment and gaps | [`docs/open_loop_lateral_identification_assessment.md`](docs/open_loop_lateral_identification_assessment.md) |
+| Agent knowledge and task procedures | [`AGENTS.md`](AGENTS.md) |
 
-    streamlit run whl_dyn/ui/app.py
+## Source map
 
-3. Open the UI in a browser at http://localhost:8501
-
-Primary artifacts
-
-- Generate calibration plans (YAML)
-- Collect CSV logs per test case
-- Produce calibration tables (CSV, protobuf text)
-- Visualize 3D response surfaces and step responses
-
-Repository layout (high level)
-
-- whl_dyn/planning — test matrix and plan generator
-- whl_dyn/collection — data collector & CyberRT integration
-- whl_dyn/processing — filtering, outlier detection, interpolation
-- whl_dyn/ui — Streamlit dashboard binding all modules
-
-Lateral vehicle-dynamics tests are collection-first and support configurable
-speed-held Chirp/Sweep and PRBS experiments.  They measure steering feedback
-to yaw rate and lateral acceleration, preserve every run in a unique
-timestamped directory, then generate Bode metrics and plots offline.  See
-[`docs/lateral_vehicle_dynamics.md`](docs/lateral_vehicle_dynamics.md) for
-the signal mapping, safety gates, UI/CLI commands and test workflow.
-
-For the phase-1 open-loop identification, phase-2 steady-state circles and
-phase-3 continuous Clothoid-to-circle closed-loop tests, see
-[`docs/handling_test_phases.md`](docs/handling_test_phases.md).
-
-How this README helps an agent learn
-
-- Clear entrypoint (whl_dyn/ui/app.py) and expected runtime (Streamlit)
-- Module boundaries and responsibilities listed above
-- Key file locations for plans, logs, and results
-
-If you need the user manual, see docs/USER_GUIDE.md. For design rationale and architecture details, see DESIGN.md.
+- `whl_dyn/planning/`: test plans and feasibility validation
+- `whl_dyn/collection/`: CyberRT collection and run storage
+- `whl_dyn/processing/`: offline metrics and reports
+- `whl_dyn/trajectory/`: reference geometry and Apollo trajectory publication
+- `whl_dyn/ui/`: Streamlit workbench
+- `tests/`: executable behavior specifications

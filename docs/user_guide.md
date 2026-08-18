@@ -1,71 +1,52 @@
-# whl_dyn User Guide
+# User Guide
 
-Contents
+## Install
 
-1. Environment
-2. Quick start
-3. Modules and workflows
-4. Troubleshooting
+The package metadata and dependencies are defined in
+[`pyproject.toml`](../pyproject.toml).
 
-1. Environment
+```bash
+python3 -m pip install -e .
+```
 
-- Linux (Ubuntu 20.04+ recommended)
-- Python 3.7+
-- Optional: Docker / Apollo dev container when integrating into Apollo
+For Apollo/CyberRT collection, run the command in the vehicle integration
+environment where the required protobuf modules are available.
 
-Install
+## Entry points
 
-    pip install -r requirements.txt
-    # or
-    pip install -e .
+```bash
+# Streamlit workbench
+streamlit run whl_dyn/ui/app.py
 
-2. Quick start
+# CLI help
+python3 -m whl_dyn.cli --help
 
-Start the Streamlit UI (from project root):
+# Unit tests
+pytest -q
+```
 
-    streamlit run whl_dyn/ui/app.py
+## Workflows
 
-Visit: http://localhost:8501
+| Workflow | Commands and reference |
+| --- | --- |
+| Longitudinal calibration and UI | `whl_dyn/ui/app.py`, [`vehicle_dynamics.md`](vehicle_dynamics.md) |
+| Lateral open-loop identification | `plan-open-loop`, `plan-lateral`, `collect-lateral`, [`lateral_vehicle_dynamics.md`](lateral_vehicle_dynamics.md) |
+| Fixed-steering steady-state tests | `plan-circles`, `analyze-steady-state`, [`handling_test_phases.md`](handling_test_phases.md) |
+| Closed-loop curve tracking | `plan-closed-loop`, `run-closed-loop`, [`handling_test_phases.md`](handling_test_phases.md) |
 
-Command-line options passed to Streamlit are supported, e.g.:
+Active vehicle commands require the documented signal mapping, safety procedure,
+and explicit execution arming. Start all new mappings in record-only mode.
 
-    streamlit run whl_dyn/ui/app.py --server.port 8502 --server.address 0.0.0.0
+## Outputs
 
-Basic workflow
+Lateral collectors create a unique run directory containing `metadata.yaml`,
+`samples.csv`, and `status.json`. Analysis commands write reports under that
+run's `analysis/` directory.
 
-1. Generate a calibration plan (YAML) with test cases and parameters.
-2. Execute collection for one or more test cases; logs are saved as CSV files.
-3. Run analysis: tune filters/delay compensation, inspect 2D/3D visualizations.
-4. Export calibration tables and diagnostics.
+## Troubleshooting
 
-Files and locations
-
-- calibration_plan.yaml — generated plan (default location used by UI)
-- calibration_data_logs/ — collected CSV logs
-- calibration_results/ — processed outputs and plots
-
-3. Modules and UI
-
-- Planning: create the test matrix (throttle/brake ranges, steps, hold times).
-- Collection: run the collector (supports auto mode) and stream logs to the UI.
-- Processing: LOF outlier detection, Butterworth filtering, delay compensation, monotonicity checks, interpolation, and table export.
-- UI: workbench to run the above steps and evaluate quality metrics (dead zone, R², smoothness, monotonicity).
-
-Quality indicators (examples)
-
-- Dead zone: < 3% is excellent
-- Linearity (R²): > 0.98 is excellent
-- Smoothness: > 85 is excellent
-
-4. Troubleshooting
-
-- If pip is slow inside a container, use a mirror:
-
-    pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
-
-- To enter the Apollo dev container (if used):
-
-    ./docker/scripts/dev_start.sh
-    ./docker/scripts/dev_into.sh
-
-For more detailed architecture and rationale, consult DESIGN.md.
+- Run `pytest -q` before changing an integration environment.
+- Verify semantic signal names, units, signs, and source timestamps in a
+  record-only run before active collection.
+- See `.agents/knowledge/troubleshooting.md` for source references and
+  integration constraints.

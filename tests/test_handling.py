@@ -12,6 +12,7 @@ from whl_dyn.planning.preflight import (
     validate_open_loop_plan,
 )
 from whl_dyn.processing.handling import (
+    fixed_steering_steady_state_metrics,
     select_steady_state_samples,
     steady_state_handling_metrics,
     tracking_metrics,
@@ -42,6 +43,21 @@ def test_clothoid_path_is_continuous_and_requires_long_enough_case():
     case = generate_closed_loop_curve_plan(output="")[0]
     assert build_path_from_case(case["trajectory"], 0.0, 0.0, 0.0,
                                 case["duration_sec"]) is not None
+
+
+def test_closed_loop_path_has_entry_straight_and_ends_on_stable_arc():
+    case = generate_closed_loop_curve_plan(output="")[0]
+    assert "exit_length_m" not in case["trajectory"]
+    assert "straight_exit_length_m" not in case["trajectory"]
+    path = build_path_from_case(case["trajectory"], 0.0, 0.0, 0.0,
+                                case["duration_sec"])
+    assert path.sample(0.0).phase == "straight_entry"
+    assert path.sample(path.straight_entry_length_m + 1.0).phase == "clothoid_entry"
+    assert path.sample(path.straight_entry_length_m + path.entry_length_m + 1.0).phase == "arc"
+    assert path.sample(path.length_m - 0.1).phase == "arc"
+    assert path.sample(path.length_m).phase == "arc"
+    assert path.sample(0.0).kappa == 0.0
+    assert np.isclose(path.sample(path.length_m - 0.1).kappa, 1.0 / 50.0)
 
 
 def test_open_loop_plan_contains_step_and_slow_ramp_both_directions():
@@ -116,3 +132,26 @@ def test_handling_metrics_fit_known_understeer_gradient_and_tracking():
     assert np.isclose(handling["understeer_gradient_rad_per_mps2"], 2.0)
     assert np.isclose(handling["steering_offset_rad"], 0.1)
     assert np.isclose(tracking["ey_peak_m"], 0.04)
+
+
+def test_fixed_steering_metrics_report_available_limit_signals():
+    frame = pd.DataFrame({
+        "steering_wheel_rad": [0.1, 0.1, 0.1],
+        "road_wheel_rad": [0.04, 0.04, 0.04],
+        "chassis_speed_mps": [10.0, 10.0, 10.0],
+        "yaw_rate_radps": [0.2, 0.2, 0.2],
+        "lateral_accel_mps2": [2.0, 2.0, 2.0],
+        "sideslip_rad": [0.01, 0.03, 0.05],
+        "esc_active": [0, 1, 1],
+        "wheel_slip_ratio": [0.01, 0.02, 0.03],
+        "elapsed_sec": [1.0, 2.0, 3.0],
+    })
+    metrics = fixed_steering_steady_state_metrics(
+        frame, steering_wheel_column="steering_wheel_rad",
+        road_wheel_column="road_wheel_rad", wheelbase_m=2.5,
+        max_abs_sideslip_rad=0.04, max_abs_wheel_slip=0.025)
+    assert np.isclose(metrics["radius_mean_m"], 50.0)
+    assert metrics["limit_flags"]["sideslip_exceeded"]
+    assert metrics["limit_flags"]["esc_intervention"]
+    assert metrics["limit_flags"]["wheel_slip_exceeded"]
+    assert metrics["limit_detected"]

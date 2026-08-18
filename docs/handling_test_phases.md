@@ -140,11 +140,46 @@ Only aggregate repeated left/right runs after their individual steady windows
 are valid.  The lateral-acceleration cap is a safety stop, not a target to
 reach.
 
+### Phase 2 common-metric report
+
+For the fixed-steering (scheme B) scope, analyze each valid run after it has
+settled:
+
+```bash
+whl-dyn analyze-steady-state \
+  --run-dir vehicle_dynamics_runs/<fixed_steering_run> \
+  --target-speed-mps 10.0 \
+  --steering-wheel-column steering_wheel_angle_rad \
+  --road-wheel-column effective_road_wheel_angle_rad \
+  --wheelbase-m 2.8 \
+  --max-abs-sideslip-rad 0.10 \
+  --max-sideslip-rate-radps 0.05 \
+  --max-yaw-rate-error-radps 0.15 \
+  --max-abs-wheel-slip 0.10
+```
+
+It writes `analysis/steady_state_metrics.json`, including the actual speed,
+actual steering-wheel and road-wheel angle statistics, mean yaw rate and
+lateral acceleration, the small-sideslip curvature/radius estimate
+(`kappa ~= r/v_x`, `R ~= 1/abs(kappa)`), yaw-rate and lateral-acceleration
+gain, sideslip, ESC active fraction, wheel-slip peak, and available limit
+flags.
+
+`sideslip_rad`, `esc_active`, and `wheel_slip_ratio` are optional vehicle
+mapping columns. A missing column is written as unavailable; it is never
+treated as proof that the vehicle remained stable. Configure
+`steering_feedback` as the actual steering-wheel angle for this test, and
+map a separate effective road-wheel angle column when calculating vehicle
+gains or understeer gradient. The analyzer does not yet aggregate multiple
+runs or infer front/rear axle saturation.
+
 ## Phase 3: closed-loop Clothoid-to-circle tracking
 
 ```bash
 whl-dyn plan-closed-loop --output closed_loop_curve.yaml \
-  --radius-m 50 --speed-mps 2 --direction left
+  --radius-m 50 --speed-mps 2 \
+  --straight-entry-length-m 20 --entry-length-m 15 \
+  --arc-angle-rad 1.57 --direction left
 
 whl-dyn run-closed-loop --plan closed_loop_curve.yaml \
   --output-dir vehicle_dynamics_runs
@@ -155,17 +190,32 @@ be the **only publisher** on that topic for the vehicle under test; stop or
 isolate the ordinary planning publisher first.  It is not a RoutingRequest
 and does not invoke `GenerateRefLineFromRawPath`.
 
-At startup it anchors a path once from localization.  Every later frame
-samples the same immutable path at the current experiment time:
+The route is:
 
 ```text
-global_s = (experiment_elapsed + trajectory_relative_time) * speed
+straight entry -> clothoid entry -> constant-radius arc -> direct safe stop
+```
+
+At startup it anchors this path once from localization. Every later frame
+samples the same immutable path from the next planning cycle:
+
+```text
+global_s = (experiment_elapsed + planning_cycle_time
+            + trajectory_relative_time) * speed
 ```
 
 Thus shared future points in two consecutive frames have identical
-`x/y/theta/kappa`.  `relative_time` and local path `s` begin at zero for each
-published window, matching the normal planning-output convention.  This avoids
-the reference jump caused by re-anchoring every frame to the latest pose.
+`x/y/theta/kappa`. `path_point.s` is local to each published window and begins
+at zero; `relative_time` begins at the planning cycle. This follows the
+relevant Apollo `TrajectoryStitcher` convention: it time-matches a prior
+trajectory, preserves valid points, and resets `s` at the stitch point. The
+test publisher deliberately does not re-anchor or transform the reference
+from vehicle pose on every frame, because that would alter the controlled
+geometry and invalidate the experiment.
+
+Reference: Apollo
+[`trajectory_stitcher.cc`](https://github.com/ApolloAuto/apollo/blob/master/modules/planning/planning_base/common/trajectory_stitcher.cc),
+especially `ComputeStitchingTrajectory` and `ComputeReinitStitchingTrajectory`.
 
 Raw output records localization, chassis and control/debug samples in a unique
 run directory.  Apply `tracking_metrics` only to the selected steady segment:
@@ -175,6 +225,8 @@ ey MAE / RMSE / P95 / Peak
 epsi MAE / RMSE
 ```
 
-The runner sends a bounded zero-speed, zero-steering brake command when the
-case ends, is interrupted, or fails.  Validate this stop behavior on the
-vehicle integration before active use.
+The configured duration ends at the constant-radius arc endpoint. The final
+forward window is clamped at that endpoint with zero reference speed;
+the runner then sends a bounded zero-speed, zero-steering brake command when
+the case ends, is interrupted, or fails. Validate this direct-stop behavior on
+the vehicle integration before active use.
