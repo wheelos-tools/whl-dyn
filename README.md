@@ -8,7 +8,7 @@ offline analysis, and a Streamlit workbench.
 
 ```bash
 python3 -m pip install -e .
-pytest -q
+
 streamlit run whl_dyn/ui/app.py
 ```
 

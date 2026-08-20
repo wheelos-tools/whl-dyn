@@ -1,0 +1,21 @@
+# Default signal mapping for vehicle dynamics collection
+topics:
+  chassis: /apollo/canbus/chassis
+  chassis_detail: /apollo/canbus/chassis_detail
+  localization: /apollo/localization/pose
+  control: /apollo/control
+
+detail_message:
+  module: modules.canbus.proto.chassis_detail_pb2
+  class: ChassisDetail
+
+detail_fields:
+  steering_feedback: eps.steering_angle
+  front_steering_command: eps.front_steering_command
+  rear_steering_command: eps.rear_steering_command
+  front_steering_feedback: eps.front_steering_feedback
+  rear_steering_feedback: eps.rear_steering_feedback
+
+control_steering_scale: 1.0
+steering_feedback_scale: 1.0
+max_feedback_age_sec: 0.2

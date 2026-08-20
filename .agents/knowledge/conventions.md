@@ -13,6 +13,8 @@ Read before adding plans, signals, analysis outputs, or CLI options.
   checks.
 - Processing results are JSON-friendly dictionaries and persisted reports live
   beside collected runs.
+- Streamlit UI workbench tabs must strictly adhere to the standard 3-stage paradigm
+  (`生成计划` -> `数据采集` -> `分析`) with consistent action buttons (`开始`, `停止`, `重试`, `清除`).
 - Tests use `pytest` and live under `tests/`.
 
 ## Sources
