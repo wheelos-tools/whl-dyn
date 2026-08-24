@@ -1,0 +1,44 @@
+- case_name: lateral_prbs_3.0
+  description: Steering PRBS for lateral vehicle frequency response.
+  domain: vehicle_dynamics
+  test_type: lateral_frequency_response
+  mode: prbs
+  actuator: steering
+  duration_sec: 120.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 20.0
+    max_steering_rate: 30.0
+  abort_policy:
+    speed_range_enforced: true
+    reserved_checks:
+    - message_freshness
+    - driving_mode
+    - fault_state
+  command_profile:
+    type: prbs
+    baseline: 0.0
+    amplitude: 2.0
+    start_time_sec: 0.0
+    end_time_sec: 120.0
+    duration_sec: 120.0
+    frequency_start_hz: 0.05
+    frequency_end_hz: 2.0
+    method: logarithmic
+    bit_duration_sec: 0.25
+    prbs_seed: 7
+    prbs_low: -2.0
+    prbs_high: 2.0

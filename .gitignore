@@ -163,3 +163,5 @@ cython_debug/
 
 calibration_data_logs
 calibration_results
+vehicle_dynamics_runs
+.whl_dyn_runtime

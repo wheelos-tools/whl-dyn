@@ -1,0 +1,16 @@
+# Default signal mapping for vehicle dynamics collection
+topics:
+  chassis: /apollo/canbus/chassis
+  chassis_detail: /apollo/canbus/chassis_detail
+  localization: /apollo/localization/pose
+  control: /apollo/control
+
+detail_fields:
+  steering_feedback: container_status_report_502.realsteeranglefront
+  front_steering_feedback: container_status_report_502.realsteeranglefront
+  rear_steering_feedback: container_status_report_502.realsteeranglerear
+
+control_steering_scale: 1.0
+steering_feedback_scale: 1.0
+max_feedback_age_sec: 0.5
+max_alignment_skew_sec: 0.05

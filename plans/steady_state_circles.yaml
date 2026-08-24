@@ -1,0 +1,1674 @@
+- case_name: steady_turn_d1_v1_left_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v1_left_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v1_left_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v1_right_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v1_right_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v1_right_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v2_left_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v2_left_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v2_left_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v2_right_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v2_right_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v2_right_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v3_left_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v3_left_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v3_left_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v3_right_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v3_right_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d1_v3_right_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 22.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 1.0
+    max_abs_feedback_steering: 1.2
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -1.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 2.0
+- case_name: steady_turn_d2_v1_left_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v1_left_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v1_left_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v1_right_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v1_right_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v1_right_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v2_left_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v2_left_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v2_left_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v2_right_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v2_right_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v2_right_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v3_left_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v3_left_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v3_left_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v3_right_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v3_right_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d2_v3_right_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 24.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 2.0
+    max_abs_feedback_steering: 2.4
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -2.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 4.0
+- case_name: steady_turn_d3_v1_left_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v1_left_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v1_left_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v1_right_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v1_right_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v1_right_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 2.0
+    target_mps: 1.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v2_left_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v2_left_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v2_left_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v2_right_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v2_right_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v2_right_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 3.0
+    target_mps: 2.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v3_left_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v3_left_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v3_left_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: 3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v3_right_r1
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v3_right_r2
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
+- case_name: steady_turn_d3_v3_right_r3
+  domain: vehicle_dynamics
+  phase: steady_state_handling
+  test_type: fixed_steering_steady_state
+  actuator: steering
+  duration_sec: 26.0
+  sampling_rate_hz: 100.0
+  input_signals:
+  - steering_command
+  - steering_feedback
+  output_signals:
+  - yaw_rate_radps
+  - lateral_accel_mps2
+  speed_gate:
+    min_mps: 0.0
+    max_mps: 4.0
+    target_mps: 3.0
+    tolerance_mps: 0.15
+    stable_duration_sec: 3.0
+    max_wait_sec: 30.0
+  safety_limits:
+    max_abs_steering: 3.0
+    max_abs_feedback_steering: 3.5999999999999996
+    max_steering_rate: 0.5
+    max_abs_lateral_accel_mps2: 1.5
+  command_profile:
+    type: ramp
+    baseline: 0.0
+    target: -3.0
+    ramp_start_sec: 0.0
+    ramp_end_sec: 6.0
