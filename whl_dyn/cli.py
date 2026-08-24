@@ -18,7 +18,7 @@ def _parser():
     subcommands = parser.add_subparsers(dest="command")
     plan = subcommands.add_parser("plan-lateral")
     plan.add_argument("--output", default="lateral_frequency_plan.yaml")
-    plan.add_argument("--mode", choices=("chirp", "sweep", "prbs"), default="chirp")
+    plan.add_argument("--mode", choices=("pulse", "single_sine", "chirp", "sweep", "prbs"), default="chirp")
     plan.add_argument("--duration-sec", type=float, default=120.0)
     plan.add_argument("--sampling-rate-hz", type=float, default=100.0)
     plan.add_argument("--frequency-start-hz", type=float, default=0.05)
@@ -32,6 +32,8 @@ def _parser():
     plan.add_argument("--max-speed-wait-sec", type=float, default=30.0)
     plan.add_argument("--bit-duration-sec", type=float, default=0.25)
     plan.add_argument("--prbs-seed", type=int, default=7)
+    plan.add_argument("--pulse-duration-sec", type=float, default=1.0)
+    plan.add_argument("--sine-frequency-hz", type=float, default=0.5)
     plan.add_argument("--max-steering", type=float, default=20.0)
     plan.add_argument("--max-steering-rate", type=float, default=30.0)
 
@@ -229,6 +231,8 @@ def main():
                 max_speed_wait_sec=args.max_speed_wait_sec,
                 bit_duration_sec=args.bit_duration_sec,
                 prbs_seed=args.prbs_seed,
+                pulse_duration_sec=args.pulse_duration_sec,
+                sine_frequency_hz=args.sine_frequency_hz,
                 max_steering=args.max_steering,
                 max_steering_rate=args.max_steering_rate,
             )

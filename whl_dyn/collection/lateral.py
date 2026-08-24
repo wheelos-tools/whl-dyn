@@ -119,10 +119,10 @@ class LateralSignalCollector:
         })
 
     def _on_chassis_detail(self, message):
-        if self._detail_class is None or not message.HasField("chassis_extension"):
+        if not message.HasField("chassis_extension"):
             return
-        detail = self._detail_class()
-        if not message.chassis_extension.Unpack(detail):
+        detail = self._detail_from_extension(message.chassis_extension)
+        if detail is None:
             return
         mapping = self.config.get("detail_fields", {})
         values = {
@@ -137,6 +137,33 @@ class LateralSignalCollector:
                         self.config.get("steering_feedback_scale", 1.0))
                 values[str(signal_name)] = normalized
         self._put(values)
+
+    def _detail_from_extension(self, extension):
+        """Resolve an Any payload from its type URL before using YAML fallback."""
+
+        type_name = str(extension.type_url).rsplit("/", 1)[-1]
+        detail_class = None
+        if self._detail_class is not None:
+            configured_name = self._detail_class.DESCRIPTOR.full_name
+            if configured_name == type_name:
+                detail_class = self._detail_class
+        if detail_class is None:
+            from google.protobuf import symbol_database
+
+            for module_name in (
+                    "modules.canbus.vehicle.zhongji_container.proto.zhongji_container_pb2",
+                    "modules.canbus.vehicle.zhongji.proto.zhongji_pb2",
+                    "modules.common_msgs.chassis_msgs.chassis_detail_pb2"):
+                try:
+                    importlib.import_module(module_name)
+                except ModuleNotFoundError:
+                    continue
+            try:
+                detail_class = symbol_database.Default().GetSymbol(type_name)
+            except KeyError:
+                return None
+        detail = detail_class()
+        return detail if extension.Unpack(detail) else None
 
     def _on_localization(self, message):
         self._put(localization_signals(message, time.time()))
@@ -174,7 +201,7 @@ class LateralSignalCollector:
             sample["time_aligned"] = (
                 all(name in sample for name in required_sources) and
                 sample["alignment_skew_sec"] <= float(
-                    self.config.get("max_alignment_skew_sec", 0.02)))
+                    self.config.get("max_alignment_skew_sec", 0.05)))
         else:
             sample["source_time_min_sec"] = float("nan")
             sample["source_time_max_sec"] = float("nan")
@@ -192,7 +219,7 @@ class LateralSignalCollector:
                               snapshot.get("chassis_detail_age_sec",
                                            float("inf")) <= float(
                                                self.config.get(
-                                                   "max_feedback_age_sec", 0.2)))
+                                                   "max_feedback_age_sec", 0.5)))
             if source_ready and (not require_steering_feedback or feedback_ready):
                 return True
             time.sleep(0.05)
@@ -273,13 +300,6 @@ class LateralSignalCollector:
             from whl_dyn.planning.preflight import validate_active_signal_config
 
             validate_active_signal_config(self.config)
-        if not self.wait_for_sources(source_timeout_sec, execute):
-            raise RuntimeError(
-                "timed out waiting for chassis, localization and steering feedback")
-        speed_gate = case.get("speed_gate", {})
-        if execute and not self.wait_for_speed_target(
-                speed_gate, float(speed_gate.get("max_wait_sec", source_timeout_sec))):
-            raise RuntimeError("timed out waiting for target speed")
 
         profile = case.get("command_profile", {})
         sampling_rate = float(case.get("sampling_rate_hz", 100.0))
@@ -299,11 +319,24 @@ class LateralSignalCollector:
             "created_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         })
         samples = []
-        started = time.monotonic()
-        next_sample = started
-        previous_command = 0.0
         abort_reason = None
+        stage = "waiting_for_sources"
         try:
+            if not self.wait_for_sources(source_timeout_sec, execute):
+                raise RuntimeError(
+                    "timed out waiting for chassis, localization and steering feedback")
+            speed_gate = case.get("speed_gate", {})
+            if execute:
+                stage = "waiting_for_target_speed"
+                if not self.wait_for_speed_target(
+                        speed_gate,
+                        float(speed_gate.get("max_wait_sec", source_timeout_sec))):
+                    raise RuntimeError("timed out waiting for target speed")
+
+            stage = "collecting"
+            started = time.monotonic()
+            next_sample = started
+            previous_command = 0.0
             while True:
                 now = time.monotonic()
                 elapsed = now - started
@@ -329,7 +362,7 @@ class LateralSignalCollector:
                     feedback_age = feedback_snapshot.get(
                         "chassis_detail_age_sec", float("inf"))
                     if float(feedback_age) > float(
-                            self.config.get("max_feedback_age_sec", 0.2)):
+                            self.config.get("max_feedback_age_sec", 0.5)):
                         raise RuntimeError("steering feedback became stale")
                     if (feedback is None or abs(float(feedback)) >
                             maximum_feedback):
@@ -352,7 +385,9 @@ class LateralSignalCollector:
                 samples.append(sample)
                 next_sample += 1.0 / sampling_rate
         except BaseException as error:
-            abort_reason = str(error)
+            abort_reason = str(error) or (
+                "interrupted by user" if isinstance(error, KeyboardInterrupt)
+                else error.__class__.__name__)
             raise
         finally:
             if execute:
@@ -361,6 +396,7 @@ class LateralSignalCollector:
                 storage.write_samples(samples)
             storage.write_status({
                 "completed": abort_reason is None,
+                "stage": "completed" if abort_reason is None else stage,
                 "abort_reason": abort_reason,
                 "sample_count": len(samples),
             })

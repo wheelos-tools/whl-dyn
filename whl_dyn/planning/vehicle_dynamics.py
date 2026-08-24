@@ -6,7 +6,7 @@ from typing import Optional
 import yaml
 
 
-SUPPORTED_LATERAL_PROFILES = ("chirp", "sweep", "prbs")
+SUPPORTED_LATERAL_PROFILES = ("pulse", "single_sine", "chirp", "sweep", "prbs")
 
 
 @dataclass
@@ -27,6 +27,8 @@ class LateralFrequencyPlanConfig:
     prbs_high: Optional[float] = None
     bit_duration_sec: float = 0.25
     prbs_seed: int = 7
+    pulse_duration_sec: float = 1.0
+    sine_frequency_hz: float = 0.5
     speed_min_mps: float = 0.0
     speed_max_mps: float = 3.0
     target_speed_mps: float = 2.0
@@ -66,7 +68,9 @@ def generate_lateral_frequency_plan(args=None, output=None, **kwargs):
     duration = float(values.get("duration_sec", 120.0))
     f0 = float(values.get("frequency_start_hz", 0.05))
     f1 = float(values.get("frequency_end_hz", 2.0))
-    if duration <= 0.0 or f0 <= 0.0 or f1 <= f0:
+    if duration <= 0.0:
+        raise ValueError("duration must be positive and 0 < start frequency < end frequency")
+    if mode not in ("pulse", "single_sine") and (f0 <= 0.0 or f1 <= f0):
         raise ValueError("duration must be positive and 0 < start frequency < end frequency")
 
     baseline = float(values.get("baseline_steering", 0.0))
@@ -85,6 +89,8 @@ def generate_lateral_frequency_plan(args=None, output=None, **kwargs):
         "method": str(values.get("sweep_method", "logarithmic")),
         "bit_duration_sec": float(values.get("bit_duration_sec", 0.25)),
         "prbs_seed": int(values.get("prbs_seed", 7)),
+        "pulse_duration_sec": float(values.get("pulse_duration_sec", 1.0)),
+        "frequency_hz": float(values.get("sine_frequency_hz", 0.5)),
         "prbs_low": float(values.get("prbs_low", baseline - amplitude)
                           if values.get("prbs_low") is not None else baseline - amplitude),
         "prbs_high": float(values.get("prbs_high", baseline + amplitude)
@@ -93,11 +99,15 @@ def generate_lateral_frequency_plan(args=None, output=None, **kwargs):
     maximum_rate = float(values.get("max_steering_rate", 30.0))
     if maximum_rate <= 0.0:
         raise ValueError("max steering rate must be positive")
-    if mode == "prbs":
+    if mode == "pulse":
+        required_rate = float("inf")
+    elif mode == "single_sine":
+        required_rate = 2.0 * 3.141592653589793 * abs(amplitude) * profile["frequency_hz"]
+    elif mode == "prbs":
         required_rate = 2.0 * abs(amplitude) / profile["bit_duration_sec"]
     else:
         required_rate = 2.0 * 3.141592653589793 * abs(amplitude) * f1
-    if required_rate > maximum_rate:
+    if mode != "pulse" and required_rate > maximum_rate:
         raise ValueError(
             "profile requires {0:.3f} steering units/s, above max_steering_rate "
             "{1:.3f}".format(required_rate, maximum_rate))
@@ -133,6 +143,7 @@ def generate_lateral_frequency_plan(args=None, output=None, **kwargs):
             "max_abs_steering": float(values.get("max_steering", 20.0)),
             "max_steering_rate": maximum_rate,
         },
+        "allow_command_step": mode == "pulse",
         "abort_policy": {
             "speed_range_enforced": True,
             "reserved_checks": ["message_freshness", "driving_mode", "fault_state"],

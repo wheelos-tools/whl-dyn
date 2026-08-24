@@ -196,7 +196,7 @@ and does not invoke `GenerateRefLineFromRawPath`.
 The runner records one fixed-rate snapshot per published planning window, not
 one row per callback. Each row contains `sample_time_sec`, localization,
 chassis, and control source timestamps, source ages, `alignment_skew_sec`, and
-`time_aligned`. The default maximum source-time skew is 20 ms and is stored in
+`time_aligned`. The default maximum source-time skew is 50 ms and is stored in
 the generated case as `max_alignment_skew_sec`. Reports must reject rows whose
 flag is false.
 

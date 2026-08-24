@@ -98,7 +98,7 @@ class ClosedLoopTrajectoryRunner:
         with self._lock:
             self._latest.update(values)
 
-    def _aligned_snapshot(self, max_alignment_skew_sec=0.02):
+    def _aligned_snapshot(self, max_alignment_skew_sec=0.05):
         now = time.time()
         with self._lock:
             sample = dict(self._latest)
@@ -146,21 +146,30 @@ class ClosedLoopTrajectoryRunner:
 
         trajectory = case.get("trajectory", {})
         duration = float(case["duration_sec"])
-        x0, y0, theta0 = self._wait_for_localization(localization_timeout_sec)
-        path = build_path_from_case(trajectory, x0, y0, theta0, duration)
         storage = RunStorage(output_root, case["case_name"], {
             "case": case,
-            "trajectory_anchor": {"x": x0, "y": y0, "theta": theta0},
             "publisher_contract": (
                 "Overlapping windows are sampled from one immutable path; "
                 "geometry at equal experiment time is frame-invariant."),
         })
+        x0 = y0 = theta0 = None
         publisher = ContinuousTrajectoryPublisher(self.node, self.planning_topic)
-        publish_period = 1.0 / float(trajectory.get("publish_rate_hz", 20.0))
-        start = time.monotonic()
-        next_tick = start
         abort_reason = None
+        stage = "waiting_for_localization"
         try:
+            x0, y0, theta0 = self._wait_for_localization(localization_timeout_sec)
+            storage.write_metadata({
+                "case": case,
+                "trajectory_anchor": {"x": x0, "y": y0, "theta": theta0},
+                "publisher_contract": (
+                    "Overlapping windows are sampled from one immutable path; "
+                    "geometry at equal experiment time is frame-invariant."),
+            })
+            path = build_path_from_case(trajectory, x0, y0, theta0, duration)
+            publish_period = 1.0 / float(trajectory.get("publish_rate_hz", 20.0))
+            start = time.monotonic()
+            next_tick = start
+            stage = "collecting"
             while time.monotonic() - start < duration:
                 elapsed = time.monotonic() - start
                 publisher.publish(
@@ -175,7 +184,9 @@ class ClosedLoopTrajectoryRunner:
                 next_tick += publish_period
                 time.sleep(max(0.0, next_tick - time.monotonic()))
         except BaseException as error:
-            abort_reason = str(error)
+            abort_reason = str(error) or (
+                "interrupted by user" if isinstance(error, KeyboardInterrupt)
+                else error.__class__.__name__)
             raise
         finally:
             self._send_safe_stop()
@@ -183,6 +194,7 @@ class ClosedLoopTrajectoryRunner:
                 storage.write_samples(self._samples)
             storage.write_status({
                 "completed": abort_reason is None,
+                "stage": "completed" if abort_reason is None else stage,
                 "abort_reason": abort_reason,
                 "sample_count": len(self._samples),
             })

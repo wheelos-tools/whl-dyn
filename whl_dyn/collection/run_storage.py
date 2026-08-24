@@ -33,6 +33,10 @@ class RunStorage:
         frame.to_csv(self.samples_path, index=False)
         return self.samples_path
 
+    def write_metadata(self, metadata):
+        with self.metadata_path.open("w") as metadata_file:
+            yaml.safe_dump(metadata, metadata_file, sort_keys=False)
+
     def write_status(self, status):
         with (self.path / "status.json").open("w") as status_file:
             json.dump(status, status_file, indent=2, sort_keys=True)

@@ -53,9 +53,11 @@ topics:
   localization: /apollo/localization/pose
   control: /apollo/control
 
-detail_message:
-  module: your_vehicle_proto_module
-  class: YourVehicleDetail
+# Optional fallback only. The collector first resolves chassis_extension
+# from its protobuf Any type_url.
+# detail_message:
+#   module: your_vehicle_proto_module
+#   class: YourVehicleDetail
 
 detail_fields:
   # Required for active tests. Map this to one normalized effective wheel
@@ -75,7 +77,13 @@ control_steering_scale: 1.0
 steering_feedback_scale: 1.0
 
 # Active collection rejects stale actual steering feedback.
-max_feedback_age_sec: 0.2
+max_feedback_age_sec: 0.5
+
+# Maximum source timestamp spread for an aligned sample.
+max_alignment_skew_sec: 0.05
+
+If automatic `Any.type_url` resolution is unavailable, uncomment
+`detail_message` and set the generated protobuf module/class for the vehicle.
 ```
 
 Localization supplies `yaw_rate_radps` from vehicle-frame angular velocity Z

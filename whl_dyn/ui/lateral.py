@@ -99,11 +99,29 @@ def _get_case_status_info(case_name: str, output_dir: Path, running_case: Option
     if runs:
         latest = runs[-1]
         samples_file = latest / "samples.csv"
+        status = {}
+        status_file = latest / "status.json"
+        if status_file.exists():
+            try:
+                with open(status_file, "r", encoding="utf-8") as f:
+                    status = json.load(f)
+            except (OSError, ValueError):
+                status = {}
         try:
             row_count = sum(1 for _ in open(samples_file, "rb")) - 1
         except Exception:
             row_count = 0
 
+        abort_reason = status.get("abort_reason")
+        if status.get("completed") is False:
+            return {
+                "status_code": "error",
+                "status_label": "中断",
+                "status_icon": "✗",
+                "rows": max(row_count, 0),
+                "latest_run": latest,
+                "abort_reason": abort_reason or "unknown interruption",
+            }
         if row_count > 10:
             return {
                 "status_code": "completed",
@@ -111,6 +129,7 @@ def _get_case_status_info(case_name: str, output_dir: Path, running_case: Option
                 "status_icon": "✓",
                 "rows": row_count,
                 "latest_run": latest,
+                "abort_reason": None,
             }
         else:
             return {
@@ -119,6 +138,7 @@ def _get_case_status_info(case_name: str, output_dir: Path, running_case: Option
                 "status_icon": "⚠",
                 "rows": row_count,
                 "latest_run": latest,
+                "abort_reason": abort_reason,
             }
 
     if st.session_state.get("lateral_last_case") == case_name and last_rc not in (None, 0):
@@ -128,6 +148,7 @@ def _get_case_status_info(case_name: str, output_dir: Path, running_case: Option
             "status_icon": "✗",
             "rows": 0,
             "latest_run": None,
+            "abort_reason": None,
         }
 
     return {
@@ -136,6 +157,7 @@ def _get_case_status_info(case_name: str, output_dir: Path, running_case: Option
         "status_icon": "⚪",
         "rows": 0,
         "latest_run": None,
+        "abort_reason": None,
     }
 
 
@@ -242,6 +264,8 @@ def render_lateral_plan(runtime_dir: Path):
         "测试阶段与工况 (Test Phase & Case)",
         [
             "phase1_step_ramp",
+            "phase1_pulse",
+            "phase1_sine",
             "phase1_chirp",
             "phase1_prbs",
             "phase2_circles",
@@ -249,6 +273,8 @@ def render_lateral_plan(runtime_dir: Path):
         ],
         format_func=lambda k: {
             "phase1_step_ramp": "Phase 1.1: 开环阶跃与慢斜坡 (Step & Slow Ramp)",
+            "phase1_pulse": "Phase 1.1: 开环脉冲 (Pulse)",
+            "phase1_sine": "Phase 1.1: 开环单正弦 (Single Sine)",
             "phase1_chirp": "Phase 1.2: 开环正弦扫频 (Chirp Frequency Sweep)",
             "phase1_prbs": "Phase 1.3: 开环伪随机序列 (PRBS Excitation)",
             "phase2_circles": "Phase 2.1: 定转角圆周稳态 (Fixed-Steering Steady Circles)",
@@ -260,6 +286,8 @@ def render_lateral_plan(runtime_dir: Path):
     # Suggested default path based on test type
     default_filename_map = {
         "phase1_step_ramp": "open_loop_identification.yaml",
+        "phase1_pulse": "lateral_pulse.yaml",
+        "phase1_sine": "lateral_sine.yaml",
         "phase1_chirp": "lateral_chirp.yaml",
         "phase1_prbs": "lateral_prbs.yaml",
         "phase2_circles": "steady_state_circles.yaml",
@@ -282,9 +310,13 @@ def render_lateral_plan(runtime_dir: Path):
             p1_max_rate = st.number_input("最大转角速率 (命令单位/s)", min_value=1.0, value=30.0, key="p1_ol_max_rate")
 
     # 2. Phase 1.2: Chirp
-    elif test_type == "phase1_chirp":
+    elif test_type in ("phase1_pulse", "phase1_sine", "phase1_chirp"):
         with left_col:
             p2_amp = st.number_input("扫频转角幅值 (命令单位)", min_value=0.01, value=2.0, key="p2_ch_amp")
+            if test_type == "phase1_pulse":
+                p2_pulse_dur = st.number_input("脉冲宽度 (s)", min_value=0.01, value=1.0, key="p2_pulse_dur")
+            elif test_type == "phase1_sine":
+                p2_sine_freq = st.number_input("正弦频率 (Hz)", min_value=0.01, value=0.5, key="p2_sine_freq")
             f1, f2 = st.columns(2)
             with f1:
                 p2_fstart = st.number_input("起始频率 (Hz)", min_value=0.01, value=0.05, key="p2_ch_fstart")
@@ -377,15 +409,17 @@ def render_lateral_plan(runtime_dir: Path):
                     max_steering=float(p1_max_steer),
                     max_steering_rate=float(p1_max_rate),
                 )
-            elif test_type == "phase1_chirp":
+            elif test_type in ("phase1_pulse", "phase1_sine", "phase1_chirp"):
                 generate_lateral_frequency_plan(
                     output=str(plan_path),
-                    mode="chirp",
+                    mode={"phase1_pulse": "pulse", "phase1_sine": "single_sine"}.get(test_type, "chirp"),
                     duration_sec=float(p2_dur),
                     sampling_rate_hz=float(p2_fs),
                     steering_amplitude=float(p2_amp),
                     frequency_start_hz=float(p2_fstart),
                     frequency_end_hz=float(p2_fend),
+                    pulse_duration_sec=float(p2_pulse_dur) if test_type == "phase1_pulse" else 1.0,
+                    sine_frequency_hz=float(p2_sine_freq) if test_type == "phase1_sine" else 0.5,
                     speed_min_mps=float(p2_smin),
                     speed_max_mps=float(p2_smax),
                     target_speed_mps=float(p2_starget),
@@ -601,6 +635,8 @@ def render_lateral_collect(runtime_dir: Path):
 
         st.caption("最新数据目录")
         st.text(latest_dir_name)
+        if curr_info and curr_info.get("abort_reason"):
+            st.error(f"中断原因：{curr_info['abort_reason']}")
 
         # Toolbar Actions (▶ 开始 | ⏹ 停止 | ↺ 重试 | 🗑 清除)
         btn_cols = st.columns(4)
@@ -643,7 +679,17 @@ def render_lateral_collect(runtime_dir: Path):
                 st.rerun()
 
         if last_rc not in (None, 0):
-            st.error(f"⚠️ 采集进程已退出 (返回码 {last_rc})，请在下方实时日志中查看详细错误。")
+            reason = ""
+            if latest_run:
+                status_file = latest_run / "status.json"
+                if status_file.exists():
+                    try:
+                        with open(status_file, "r", encoding="utf-8") as f:
+                            reason = json.load(f).get("abort_reason") or ""
+                    except (OSError, ValueError):
+                        pass
+            suffix = f"：{reason}" if reason else ""
+            st.error(f"⚠️ 采集进程已退出 (返回码 {last_rc}){suffix}")
 
         st.markdown("**实时日志**")
         logs = st.session_state.get("lateral_logs", [])

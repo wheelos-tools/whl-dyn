@@ -42,8 +42,9 @@ def validate_active_signal_config(config):
     if "steering_feedback" not in fields:
         raise ValueError(
             "active open-loop collection requires detail_fields.steering_feedback")
-    if not config.get("detail_message"):
-        raise ValueError("active open-loop collection requires detail_message")
+    if config.get("detail_message") is not None and not isinstance(
+            config.get("detail_message"), dict):
+        raise ValueError("detail_message fallback must be a mapping")
     scale = float(config.get("steering_feedback_scale", 1.0))
     if scale == 0.0:
         raise ValueError("steering_feedback_scale must be non-zero")

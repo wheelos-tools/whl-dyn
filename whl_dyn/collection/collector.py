@@ -6,6 +6,7 @@ This script automates vehicle dynamics data collection by executing a predefined
 YAML test plan. It incorporates fail-safes, robust state management, and clear
 operator feedback, adhering to industry best practices.
 """
+from __future__ import annotations
 
 import argparse
 import math
@@ -17,12 +18,18 @@ from pathlib import Path
 
 import yaml
 
-from cyber.python.cyber_py3 import cyber
-from cyber.python.cyber_py3 import cyber_time
-from modules.common_msgs.chassis_msgs import chassis_pb2
-from modules.common_msgs.control_msgs import control_cmd_pb2
-from modules.common_msgs.localization_msgs import localization_pb2
-
+try:
+    from cyber.python.cyber_py3 import cyber
+    from cyber.python.cyber_py3 import cyber_time
+    from modules.common_msgs.chassis_msgs import chassis_pb2
+    from modules.common_msgs.control_msgs import control_cmd_pb2
+    from modules.common_msgs.localization_msgs import localization_pb2
+except ModuleNotFoundError:
+    cyber = None
+    cyber_time = None
+    chassis_pb2 = None
+    control_cmd_pb2 = None
+    localization_pb2 = None
 
 # --- Use dataclasses for clear state management ---
 SUPPORTED_DYNAMIC_PROFILES = (
@@ -167,7 +174,7 @@ class ControlState:
     """Stores the last sent control command"""
     throttle: float = 0.0
     brake: float = 0.0
-    gear: int = chassis_pb2.Chassis.GEAR_DRIVE
+    gear: int = 0
     # TODO(leafyleong): re-enable after motion mode supported
     # motion_mode: int = chassis_pb2.Chassis.MOTION_ACKERMANN
 
@@ -180,6 +187,9 @@ class AdvancedDataCollector:
                  output_dir="./calibration_data_logs",
                  auto_start=False):
         """Initialization"""
+        if control_cmd_pb2 is None:
+            raise RuntimeError(
+                "Apollo CyberRT Python modules are required for active collection")
         self.node = node
         self.control_pub = node.create_writer('/apollo/control',
                                               control_cmd_pb2.ControlCommand)

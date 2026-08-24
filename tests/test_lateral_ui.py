@@ -59,6 +59,16 @@ def test_lateral_ui_status_tracking():
         assert st_completed["status_code"] == "completed"
         assert st_completed["rows"] == 50
 
+        # An interrupted run exposes its persisted reason.
+        run_a_status = run_a / "status.json"
+        run_a_status.write_text(
+            '{"completed": false, "abort_reason": "vehicle left configured speed range"}',
+            encoding="utf-8",
+        )
+        st_failed = _get_case_status_info("case_a", out_dir, None, None)
+        assert st_failed["status_code"] == "error"
+        assert st_failed["abort_reason"] == "vehicle left configured speed range"
+
         # Find runs
         runs = _find_case_runs(out_dir, "case_a")
         assert len(runs) == 1
