@@ -284,6 +284,8 @@ class LateralSignalCollector:
         message.throttle = 0.0
         message.brake = 0.0
         message.steering_target = float(steering_command) * command_scale
+        message.pad_msg.driving_mode = 1
+        message.pad_msg.action = 1
         self._control_writer().write(message)
 
     def collect_case(self, case, output_root, execute=False, arm=False,

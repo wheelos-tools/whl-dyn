@@ -214,5 +214,7 @@ class ClosedLoopTrajectoryRunner:
             command.speed = 0.0
             command.steering_target = 0.0
             command.brake = 30.0
+            command.pad_msg.driving_mode = 1
+            command.pad_msg.action = 1
             writer.write(command)
             time.sleep(0.05)

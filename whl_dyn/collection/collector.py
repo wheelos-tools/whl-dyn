@@ -491,8 +491,10 @@ class AdvancedDataCollector:
         cmd.header.timestamp_sec = cyber_time.Time.now().to_sec()
 
         if reset:
+            cmd.pad_msg.driving_mode = 1
             cmd.pad_msg.action = 2
         else:
+            cmd.pad_msg.driving_mode = 1
             cmd.pad_msg.action = 1
             if default:
                 self.last_sent_control = ControlState(throttle=0.0, brake=0.0)
