@@ -12,5 +12,7 @@ detail_fields:
 
 control_steering_scale: 1.0
 steering_feedback_scale: 1.0
+control_gear_location: 3
+stop_brake: 30.0
 max_feedback_age_sec: 0.5
 max_alignment_skew_sec: 0.05

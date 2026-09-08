@@ -77,9 +77,26 @@ def test_steady_turn_matrix_is_open_loop_and_has_both_directions():
     assert cases
     assert all("trajectory" not in case for case in cases)
     assert all(case["command_profile"]["type"] == "ramp" for case in cases)
+    assert all(case["steering_before_speed"] for case in cases)
+    assert all(case["turn_count"] == 1.0 for case in cases)
+    assert all(case["duration_sec"] == 120.0 for case in cases)
+    assert all(case["longitudinal_control"]["mode"] == "speed" for case in cases)
+    assert all(case["speed_gate"]["stable_duration_sec"] == 5.0 for case in cases)
     assert {case["command_profile"]["target"] > 0.0 for case in cases} == {
         True, False}
     assert validate_open_loop_plan(cases)
+
+
+def test_steady_turn_matrix_supports_throttle_control():
+    case = generate_steady_state_circle_plan(
+        steering_commands=(1.0,), speed_targets_mps=(2.0,), repeats=1,
+        longitudinal_mode="throttle", throttle_command=12.0, output="")[0]
+    assert case["longitudinal_control"] == {
+        "mode": "throttle",
+        "throttle": 12.0,
+        "brake": 0.0,
+    }
+    assert case["speed_gate"]["stable_duration_sec"] == 5.0
 
 
 def test_open_loop_preflight_rejects_trajectory_and_missing_feedback_config():

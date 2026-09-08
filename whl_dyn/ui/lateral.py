@@ -368,11 +368,31 @@ def render_lateral_plan(runtime_dir: Path):
     elif test_type == "phase2_circles":
         with left_col:
             p1_c_steer = st.text_input("转向角矩阵 (逗号分隔)", value="1.0, 2.0, 3.0", key="p1_c_steer")
-            p1_c_speeds = st.text_input("车速矩阵 (m/s, 逗号分隔)", value="1.0, 2.0, 3.0", key="p1_c_speeds")
-            p1_c_dur = st.number_input("稳态持续时间 (s)", min_value=1.0, value=20.0, key="p1_c_dur")
+            p1_c_longitudinal_mode = st.selectbox(
+                "纵向控制模式",
+                ["speed", "throttle"],
+                format_func=lambda m: "速度控制" if m == "speed" else "油门控制",
+                key="p1_c_longitudinal_mode",
+            )
+            speed_label = (
+                "速度控制值矩阵 (m/s, 逗号分隔)"
+                if p1_c_longitudinal_mode == "speed"
+                else "速度稳定范围参考矩阵 (m/s, 逗号分隔)"
+            )
+            p1_c_speeds = st.text_input(
+                speed_label, value="1.0, 2.0, 3.0", key="p1_c_speeds")
+            p1_c_turns = st.number_input("采集圈数", min_value=0.1, value=1.0, key="p1_c_turns")
         with right_col:
             p1_c_ramp = st.number_input("转向进入速率 (命令单位/s)", min_value=0.1, value=0.5, key="p1_c_ramp")
             p1_c_accel = st.number_input("最大侧向加速度 (m/s²)", min_value=0.5, value=1.5, key="p1_c_accel")
+            p1_c_max_duration = st.number_input("单工况最长时间 (s)", min_value=1.0, value=120.0, key="p1_c_max_duration")
+            if p1_c_longitudinal_mode == "throttle":
+                p1_c_throttle = st.number_input(
+                    "油门输入 (%)", min_value=0.0, max_value=100.0,
+                    value=10.0, key="p1_c_throttle")
+            else:
+                p1_c_throttle = 0.0
+            p1_c_stable_speed = st.number_input("速度稳定时间 (s)", min_value=0.1, value=5.0, key="p1_c_stable_speed")
             p1_c_rep = st.number_input("每工况重复次数", min_value=1, value=3, key="p1_c_rep")
 
     # 5. Phase 3.1: Closed Loop Curve
@@ -452,7 +472,11 @@ def render_lateral_plan(runtime_dir: Path):
                     output=str(plan_path),
                     steering_commands=_float_list(p1_c_steer),
                     speed_targets_mps=_float_list(p1_c_speeds),
-                    steady_duration_sec=float(p1_c_dur),
+                    turn_count=float(p1_c_turns),
+                    max_duration_sec=float(p1_c_max_duration),
+                    longitudinal_mode=p1_c_longitudinal_mode,
+                    throttle_command=float(p1_c_throttle),
+                    stable_speed_sec=float(p1_c_stable_speed),
                     steering_ramp_rate=float(p1_c_ramp),
                     max_lateral_accel_mps2=float(p1_c_accel),
                     repeats=int(p1_c_rep),

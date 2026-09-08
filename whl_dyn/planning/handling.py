@@ -89,7 +89,11 @@ class SteadyStateCircleConfig:
     output: str = "steady_state_circles.yaml"
     steering_commands: tuple = (1.0, 2.0, 3.0)
     speed_targets_mps: tuple = (1.0, 2.0, 3.0)
-    steady_duration_sec: float = 20.0
+    turn_count: float = 1.0
+    max_duration_sec: float = 120.0
+    longitudinal_mode: str = "speed"
+    throttle_command: float = 0.0
+    stable_speed_sec: float = 5.0
     steering_ramp_rate: float = 0.5
     max_lateral_accel_mps2: float = 1.5
     repeats: int = 3
@@ -98,9 +102,10 @@ class SteadyStateCircleConfig:
 def generate_steady_state_circle_plan(config=None, output=None, **kwargs):
     """Create pure open-loop, fixed-steering steady-state test cases.
 
-    A fixed steering angle determines the actual radius, so radius and lateral
-    acceleration are measurements in this phase, not commands.  The generated
-    case uses no planning trajectory and is executed by ``collect-lateral``.
+    Steering is established before the vehicle accelerates.  The collector
+    then holds the speed and steering while recording the requested number of
+    vehicle turns.  A fixed steering angle determines the actual radius, so
+    radius and lateral acceleration are measurements, not commands.
     """
 
     values = asdict(config or SteadyStateCircleConfig())
@@ -109,6 +114,21 @@ def generate_steady_state_circle_plan(config=None, output=None, **kwargs):
     ramp_rate = float(values["steering_ramp_rate"])
     if ramp_rate <= 0.0:
         raise ValueError("steering ramp rate must be positive")
+    turn_count = float(values["turn_count"])
+    if turn_count <= 0.0:
+        raise ValueError("turn count must be positive")
+    max_duration = float(values["max_duration_sec"])
+    if max_duration <= 0.0:
+        raise ValueError("maximum duration must be positive")
+    longitudinal_mode = str(values["longitudinal_mode"]).lower()
+    if longitudinal_mode not in ("speed", "throttle"):
+        raise ValueError("longitudinal mode must be speed or throttle")
+    throttle_command = float(values["throttle_command"])
+    if longitudinal_mode == "throttle" and not 0.0 <= throttle_command <= 100.0:
+        raise ValueError("throttle command must be between 0 and 100")
+    stable_speed_sec = float(values["stable_speed_sec"])
+    if stable_speed_sec <= 0.0:
+        raise ValueError("stable speed duration must be positive")
     for command in values["steering_commands"]:
         if float(command) <= 0.0:
             raise ValueError("steering command magnitudes must be positive")
@@ -127,8 +147,18 @@ def generate_steady_state_circle_plan(config=None, output=None, **kwargs):
                         "phase": "steady_state_handling",
                         "test_type": "fixed_steering_steady_state",
                         "actuator": "steering",
-                        "duration_sec": ramp_duration + float(
-                            values["steady_duration_sec"]),
+                        "duration_sec": max_duration,
+                        "turn_count": turn_count,
+                        "steering_before_speed": True,
+                        "longitudinal_control": dict(
+                            {
+                                "mode": longitudinal_mode,
+                                "throttle": throttle_command,
+                                "brake": 0.0,
+                            },
+                            **({"speed_mps": float(speed)}
+                               if longitudinal_mode == "speed" else {}),
+                        ),
                         "sampling_rate_hz": 100.0,
                         "input_signals": ["steering_command", "steering_feedback"],
                         "output_signals": ["yaw_rate_radps", "lateral_accel_mps2"],
@@ -137,7 +167,8 @@ def generate_steady_state_circle_plan(config=None, output=None, **kwargs):
                             "max_mps": float(speed) + 1.0,
                             "target_mps": float(speed),
                             "tolerance_mps": 0.15,
-                            "stable_duration_sec": 3.0,
+                            "stability_tolerance_mps": 0.15,
+                            "stable_duration_sec": stable_speed_sec,
                             "max_wait_sec": 30.0,
                         },
                         "safety_limits": {

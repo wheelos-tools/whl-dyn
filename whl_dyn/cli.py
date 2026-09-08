@@ -63,6 +63,12 @@ def _parser():
     circles.add_argument("--steering-commands", default="1,2,3")
     circles.add_argument("--speed-targets-mps", default="1,2,3")
     circles.add_argument("--steering-ramp-rate", type=float, default=0.5)
+    circles.add_argument("--turn-count", type=float, default=1.0)
+    circles.add_argument("--max-duration-sec", type=float, default=120.0)
+    circles.add_argument("--longitudinal-mode", choices=("speed", "throttle"),
+                         default="speed")
+    circles.add_argument("--throttle-command", type=float, default=0.0)
+    circles.add_argument("--stable-speed-sec", type=float, default=5.0)
     circles.add_argument("--max-lateral-accel-mps2", type=float, default=1.5)
 
     steady = subcommands.add_parser("analyze-steady-state")
@@ -286,6 +292,11 @@ def main():
                 steering_commands=_float_list(args.steering_commands),
                 speed_targets_mps=_float_list(args.speed_targets_mps),
                 steering_ramp_rate=args.steering_ramp_rate,
+                turn_count=args.turn_count,
+                max_duration_sec=args.max_duration_sec,
+                longitudinal_mode=args.longitudinal_mode,
+                throttle_command=args.throttle_command,
+                stable_speed_sec=args.stable_speed_sec,
                 max_lateral_accel_mps2=args.max_lateral_accel_mps2)
             print(args.output)
             return

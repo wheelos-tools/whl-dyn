@@ -8,6 +8,7 @@ import importlib
 import math
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
 import yaml
@@ -241,25 +242,63 @@ class LateralSignalCollector:
         return abs(float(speed) - float(gate["target_mps"])) <= float(
             gate.get("tolerance_mps", 0.0))
 
-    def wait_for_speed_target(self, gate, timeout_sec):
-        """Hold a commanded speed inside its tolerance before lateral excitation."""
+    def wait_for_speed_stable(self, gate, longitudinal, timeout_sec,
+                              steering_command=0.0):
+        """Hold longitudinal input until speed is stable for the configured time."""
 
         required = ("min_mps", "max_mps", "target_mps")
         if any(name not in gate for name in required):
             raise ValueError("active lateral tests require a complete speed gate")
         stable_duration = float(gate.get("stable_duration_sec", 0.0))
+        stability_tolerance = float(gate.get(
+            "stability_tolerance_mps", gate.get("tolerance_mps", 0.15)))
+        if stable_duration <= 0.0 or stability_tolerance < 0.0:
+            raise ValueError("speed stability settings must be non-negative")
         deadline = time.monotonic() + float(timeout_sec)
-        stable_since = None
+        stable_samples = deque()
         while time.monotonic() < deadline:
-            self.publish_control(0.0, float(gate["target_mps"]))
-            if self._speed_in_gate(gate) and self._speed_at_target(gate):
-                stable_since = stable_since or time.monotonic()
-                if time.monotonic() - stable_since >= stable_duration:
-                    return True
+            self.publish_control(
+                float(steering_command),
+                longitudinal=longitudinal,
+            )
+            now = time.monotonic()
+            snapshot = self.snapshot()
+            speed = snapshot.get("chassis_speed_mps", snapshot.get("speed_mps"))
+            if speed is not None and self._speed_in_gate(gate):
+                stable_samples.append((now, float(speed)))
+                while stable_samples and now - stable_samples[0][0] > stable_duration:
+                    stable_samples.popleft()
+                speeds = [value for _, value in stable_samples]
+                if (stable_samples and
+                        now - stable_samples[0][0] >= stable_duration and
+                        max(speeds) - min(speeds) <= stability_tolerance):
+                    return float(sum(speeds) / len(speeds))
             else:
-                stable_since = None
+                stable_samples.clear()
             time.sleep(0.05)
-        return False
+        return None
+
+    def prepare_steering_before_speed(self, profile, sampling_rate,
+                                      maximum, maximum_rate):
+        """Reach a fixed steering target before enabling longitudinal motion."""
+
+        target = float(profile.get("target", 0.0))
+        ramp_end = float(profile.get("ramp_end_sec", 0.0))
+        started = time.monotonic()
+        previous = 0.0
+        while True:
+            elapsed = time.monotonic() - started
+            if elapsed >= ramp_end:
+                break
+            command = target * elapsed / ramp_end if ramp_end else target
+            if abs(command) > maximum:
+                raise RuntimeError("steering profile exceeds configured limit")
+            if abs(command - previous) / (1.0 / sampling_rate) > maximum_rate:
+                raise RuntimeError("steering profile exceeds configured rate")
+            self.publish_control(command, 0.0)
+            previous = command
+            time.sleep(1.0 / sampling_rate)
+        self.publish_control(target, 0.0)
 
     def _control_writer(self):
         if self._writer is None:
@@ -269,7 +308,8 @@ class LateralSignalCollector:
                 self.topics["control"], control_cmd_pb2.ControlCommand)
         return self._writer
 
-    def publish_control(self, steering_command, speed_target_mps):
+    def publish_control(self, steering_command, speed_target_mps=0.0,
+                        longitudinal=None):
         """Publish coupled longitudinal hold and lateral excitation commands."""
 
         from modules.common_msgs.control_msgs import control_cmd_pb2
@@ -280,9 +320,20 @@ class LateralSignalCollector:
         message.header.timestamp_sec = time.time()
         message.header.sequence_num = self._sequence_num
         message.header.module_name = "whl_dyn_lateral"
-        message.speed = float(speed_target_mps)
-        message.throttle = 0.0
-        message.brake = 0.0
+        control = longitudinal or {
+            "mode": "speed",
+            "speed_mps": speed_target_mps,
+            "throttle": 0.0,
+            "brake": 0.0,
+        }
+        mode = str(control.get("mode", "speed")).lower()
+        if mode not in ("speed", "throttle"):
+            raise ValueError("longitudinal control mode must be speed or throttle")
+        message.speed = float(control.get("speed_mps", 0.0)) if mode == "speed" else 0.0
+        message.throttle = float(control.get("throttle", 0.0)) if mode == "throttle" else 0.0
+        message.brake = float(control.get("brake", 0.0))
+        message.gear_location = int(control.get(
+            "gear_location", self.config.get("control_gear_location", 3)))
         message.steering_target = float(steering_command) * command_scale
         message.pad_msg.driving_mode = 1
         message.pad_msg.action = 1
@@ -323,22 +374,54 @@ class LateralSignalCollector:
         samples = []
         abort_reason = None
         stage = "waiting_for_sources"
+        steering_before_speed = bool(case.get("steering_before_speed", False))
+        steering_target = float(profile.get("target", 0.0))
+        longitudinal = dict(case.get("longitudinal_control", {
+            "mode": "speed",
+            "speed_mps": case.get("speed_gate", {}).get("target_mps", 0.0),
+            "throttle": 0.0,
+            "brake": 0.0,
+        }))
+        stable_speed_mean = None
         try:
             if not self.wait_for_sources(source_timeout_sec, execute):
                 raise RuntimeError(
                     "timed out waiting for chassis, localization and steering feedback")
             speed_gate = case.get("speed_gate", {})
             if execute:
-                stage = "waiting_for_target_speed"
-                if not self.wait_for_speed_target(
-                        speed_gate,
-                        float(speed_gate.get("max_wait_sec", source_timeout_sec))):
-                    raise RuntimeError("timed out waiting for target speed")
+                stage = "waiting_for_stable_speed"
+                if steering_before_speed:
+                    stage = "establishing_steering"
+                    self.prepare_steering_before_speed(
+                        profile, sampling_rate, maximum, maximum_rate)
+                stable_speed_mean = self.wait_for_speed_stable(
+                    speed_gate,
+                    longitudinal,
+                    float(speed_gate.get("max_wait_sec", source_timeout_sec)),
+                    steering_command=(
+                        steering_target if steering_before_speed else 0.0),
+                )
+                if stable_speed_mean is None:
+                    raise RuntimeError("timed out waiting for stable speed")
+                storage.write_metadata({
+                    "case": case,
+                    "collection_mode": "execute" if execute else "record_only",
+                    "signal_config": self.config,
+                    "created_at_utc": time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "stable_speed_mean_mps": stable_speed_mean,
+                    "stable_duration_sec": speed_gate.get("stable_duration_sec"),
+                })
 
             stage = "collecting"
             started = time.monotonic()
             next_sample = started
             previous_command = 0.0
+            turn_count = float(case.get("turn_count", 0.0)) if execute else 0.0
+            target_turn_angle = 2.0 * math.pi * turn_count
+            accumulated_turn_angle = 0.0
+            turn_count_reached = False
+            previous_sample_time = None
             while True:
                 now = time.monotonic()
                 elapsed = now - started
@@ -350,7 +433,10 @@ class LateralSignalCollector:
                 if execute:
                     from whl_dyn.collection.collector import evaluate_command_profile
 
-                    command = float(evaluate_command_profile(profile, elapsed))
+                    command = (
+                        steering_target if steering_before_speed else
+                        float(evaluate_command_profile(profile, elapsed))
+                    )
                     if abs(command) > maximum:
                         raise RuntimeError("steering profile exceeds configured limit")
                     if (not case.get("allow_command_step", False) and elapsed > 0.0 and
@@ -377,15 +463,33 @@ class LateralSignalCollector:
                             float(max_lateral_accel)):
                         raise RuntimeError(
                             "vehicle exceeded lateral acceleration limit")
-                    self.publish_control(command, float(speed_gate["target_mps"]))
+                    self.publish_control(command, longitudinal=longitudinal)
                     previous_command = command
                 sample = self.snapshot()
                 sample["elapsed_sec"] = elapsed
                 sample["sample_index"] = len(samples)
                 sample["steering_command"] = previous_command if execute else float("nan")
-                sample["case_phase"] = _case_phase(profile, elapsed)
+                sample["case_phase"] = (
+                    "steady" if steering_before_speed else
+                    _case_phase(profile, elapsed)
+                )
+                if execute and turn_count > 0.0:
+                    sample_time = float(sample["collector_monotonic_sec"])
+                    if previous_sample_time is not None:
+                        yaw_rate = sample.get("yaw_rate_radps")
+                        if yaw_rate is None:
+                            raise RuntimeError(
+                                "turn-count collection requires yaw_rate_radps")
+                        accumulated_turn_angle += abs(float(yaw_rate)) * max(
+                            0.0, sample_time - previous_sample_time)
+                    previous_sample_time = sample_time
+                    sample["accumulated_turn_angle_rad"] = accumulated_turn_angle
                 samples.append(sample)
                 next_sample += 1.0 / sampling_rate
+                if execute and turn_count > 0.0 and (
+                        accumulated_turn_angle >= target_turn_angle):
+                    turn_count_reached = True
+                    break
         except BaseException as error:
             abort_reason = str(error) or (
                 "interrupted by user" if isinstance(error, KeyboardInterrupt)
@@ -393,7 +497,17 @@ class LateralSignalCollector:
             raise
         finally:
             if execute:
-                self.publish_control(0.0, 0.0)
+                self.publish_control(
+                    0.0,
+                    longitudinal={
+                        "mode": "speed",
+                        "speed_mps": 0.0,
+                        "throttle": 0.0,
+                        "brake": float(self.config.get("stop_brake", 30.0)),
+                        "gear_location": int(self.config.get(
+                            "control_gear_location", 3)),
+                    },
+                )
             if samples:
                 storage.write_samples(samples)
             storage.write_status({
@@ -401,6 +515,8 @@ class LateralSignalCollector:
                 "stage": "completed" if abort_reason is None else stage,
                 "abort_reason": abort_reason,
                 "sample_count": len(samples),
+                "turn_count_reached": turn_count_reached if execute else None,
+                "stable_speed_mean_mps": stable_speed_mean,
             })
         return storage.path
 

@@ -74,24 +74,38 @@ whl-dyn plan-circles --output steady_state_turns.yaml \
   --steering-commands 1,2,3 \
   --speed-targets-mps 1,2,3 \
   --steering-ramp-rate 0.5 \
+  --turn-count 1 \
+  --max-duration-sec 120 \
+  --longitudinal-mode speed \
+  --stable-speed-sec 5 \
   --max-lateral-accel-mps2 1.5
 ```
 
-This is an **open-loop** test: it publishes only `ControlCommand.speed` and a
-rate-limited fixed `ControlCommand.steering_target`; it does not publish a
-planning trajectory.  The actual radius/curvature and lateral acceleration are
-measurements.  Consequently, the fixed steering test determines the
+This is an **open-loop** test: it first publishes a rate-limited fixed
+`ControlCommand.steering_target` while speed is zero, then publishes the
+configured longitudinal command while holding that steering angle.  In
+`speed` mode it sends the configured value through `ControlCommand.speed` with
+zero throttle and brake.  In `throttle` mode the plan contains no speed
+control value: it sends `ControlCommand.speed=0` and the configured throttle.
+The speed matrix in throttle mode is only the stability safety-range
+reference.  The gear is sent on every command.  After actual
+speed remains stable for the configured duration (default five seconds), the
+mean speed during that stable window is stored and recording continues until
+the configured number of vehicle turns is reached (or the maximum duration is
+reached); it then sends speed zero with a positive brake command.  It does not
+publish a planning trajectory.  The actual radius/curvature and lateral
+acceleration are measurements.  Consequently, the fixed steering test determines the
 relationship:
 
 ```text
 fixed steering + speed -> measured kappa, yaw rate, ay
 ```
 
-The generated matrix includes both directions and repetitions. It ramps from
-zero to the requested fixed steering angle, holds it through the steady
-window, and aborts on the configured lateral-acceleration cap. Select only a
-steady window after the ramp, saturation and speed-transient samples have been
-removed. Then fit:
+The generated matrix includes both directions and repetitions. The turn count
+is based on accumulated absolute yaw-rate angle (`|yaw_rate| * dt`), so a
+valid `yaw_rate_radps` signal is required for active turn-count collection.
+Select only a steady window after speed stabilization, saturation and any
+speed-transient samples have been removed. Then fit:
 
 ```text
 delta - L * kappa = Ku * ay + offset

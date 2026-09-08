@@ -3,7 +3,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -16,7 +23,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -34,7 +42,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -47,7 +62,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -65,7 +81,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -78,7 +101,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -96,7 +120,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -109,7 +140,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -127,7 +159,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -140,7 +179,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -158,7 +198,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -171,7 +218,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -189,7 +237,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -202,7 +257,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -220,7 +276,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -233,7 +296,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -251,7 +315,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -264,7 +335,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -282,7 +354,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -295,7 +374,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -313,7 +393,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -326,7 +413,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -344,7 +432,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -357,7 +452,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -375,7 +471,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -388,7 +491,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -406,7 +510,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -419,7 +530,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -437,7 +549,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -450,7 +569,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -468,7 +588,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -481,7 +608,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -499,7 +627,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -512,7 +647,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -530,7 +666,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 22.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -543,7 +686,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 1.0
@@ -561,7 +705,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -574,7 +725,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -592,7 +744,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -605,7 +764,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -623,7 +783,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -636,7 +803,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -654,7 +822,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -667,7 +842,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -685,7 +861,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -698,7 +881,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -716,7 +900,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -729,7 +920,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -747,7 +939,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -760,7 +959,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -778,7 +978,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -791,7 +998,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -809,7 +1017,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -822,7 +1037,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -840,7 +1056,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -853,7 +1076,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -871,7 +1095,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -884,7 +1115,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -902,7 +1134,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -915,7 +1154,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -933,7 +1173,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -946,7 +1193,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -964,7 +1212,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -977,7 +1232,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -995,7 +1251,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1008,7 +1271,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -1026,7 +1290,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1039,7 +1310,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -1057,7 +1329,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1070,7 +1349,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -1088,7 +1368,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 24.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1101,7 +1388,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 2.0
@@ -1119,7 +1407,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1132,7 +1427,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1150,7 +1446,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1163,7 +1466,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1181,7 +1485,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1194,7 +1505,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1212,7 +1524,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1225,7 +1544,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1243,7 +1563,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1256,7 +1583,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1274,7 +1602,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 1.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1287,7 +1622,8 @@
     max_mps: 2.0
     target_mps: 1.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1305,7 +1641,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1318,7 +1661,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1336,7 +1680,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1349,7 +1700,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1367,7 +1719,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1380,7 +1739,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1398,7 +1758,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1411,7 +1778,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1429,7 +1797,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1442,7 +1817,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1460,7 +1836,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 2.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1473,7 +1856,8 @@
     max_mps: 3.0
     target_mps: 2.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1491,7 +1875,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1504,7 +1895,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1522,7 +1914,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1535,7 +1934,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1553,7 +1953,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1566,7 +1973,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1584,7 +1992,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1597,7 +2012,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1615,7 +2031,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1628,7 +2051,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
@@ -1646,7 +2070,14 @@
   phase: steady_state_handling
   test_type: fixed_steering_steady_state
   actuator: steering
-  duration_sec: 26.0
+  duration_sec: 120.0
+  turn_count: 1.0
+  steering_before_speed: true
+  longitudinal_control:
+    mode: speed
+    speed_mps: 3.0
+    throttle: 0.0
+    brake: 0.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -1659,7 +2090,8 @@
     max_mps: 4.0
     target_mps: 3.0
     tolerance_mps: 0.15
-    stable_duration_sec: 3.0
+    stability_tolerance_mps: 0.15
+    stable_duration_sec: 5.0
     max_wait_sec: 30.0
   safety_limits:
     max_abs_steering: 3.0
