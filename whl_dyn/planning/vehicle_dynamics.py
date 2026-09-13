@@ -19,13 +19,13 @@ class LateralFrequencyPlanConfig:
     duration_sec: float = 120.0
     sampling_rate_hz: float = 100.0
     baseline_steering: float = 0.0
-    steering_amplitude: float = 2.0
+    steering_amplitude: float = 10.0
     frequency_start_hz: float = 0.05
-    frequency_end_hz: float = 2.0
+    frequency_end_hz: float = 0.5
     sweep_method: str = "logarithmic"
     prbs_low: Optional[float] = None
     prbs_high: Optional[float] = None
-    bit_duration_sec: float = 0.25
+    bit_duration_sec: float = 0.5
     prbs_seed: int = 7
     pulse_duration_sec: float = 1.0
     sine_frequency_hz: float = 0.5
@@ -35,8 +35,9 @@ class LateralFrequencyPlanConfig:
     speed_tolerance_mps: float = 0.15
     stable_speed_sec: float = 3.0
     max_speed_wait_sec: float = 30.0
-    max_steering: float = 20.0
-    max_steering_rate: float = 30.0
+    max_steering: float = 40.0
+    max_steering_rate: float = 50.0
+    max_lateral_accel_mps2: float = 1.5
 
 
 def _as_values(args, kwargs):
@@ -142,8 +143,12 @@ def generate_lateral_frequency_plan(args=None, output=None, **kwargs):
         "safety_limits": {
             "max_abs_steering": float(values.get("max_steering", 20.0)),
             "max_steering_rate": maximum_rate,
+            "max_abs_lateral_accel_mps2": float(
+                values.get("max_lateral_accel_mps2", 1.5)),
         },
-        "allow_command_step": mode == "pulse",
+        # PRBS and pulse are intentionally discontinuous excitations.  The
+        # safety gate remains on measured feedback and lateral acceleration.
+        "allow_command_step": mode in ("pulse", "prbs"),
         "abort_policy": {
             "speed_range_enforced": True,
             "reserved_checks": ["message_freshness", "driving_mode", "fault_state"],

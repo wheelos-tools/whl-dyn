@@ -20,7 +20,8 @@ listed below so that unavailable signals are not mistaken for passing results.
 - Chirp, Sweep, and PRBS steering excitation.
 - Speed stabilization before active excitation.
 - Separate steering command and actual steering feedback fields.
-- 100 Hz default sampling in the lateral plans.
+- 50 Hz Phase 1 handling sampling, aligned with the simulator's 20 ms control
+  interval.
 - `steering_feedback -> yaw_rate_radps` and
   `steering_feedback -> lateral_accel_mps2` Bode reports.
 - Gain, phase, coherence, approximate -3 dB bandwidth, resonance peak, and

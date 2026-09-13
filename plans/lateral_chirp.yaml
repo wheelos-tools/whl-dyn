@@ -4,7 +4,7 @@
   test_type: lateral_frequency_response
   mode: chirp
   actuator: steering
-  duration_sec: 120.0
+  duration_sec: 30.0
   sampling_rate_hz: 100.0
   input_signals:
   - steering_command
@@ -20,8 +20,10 @@
     stable_duration_sec: 3.0
     max_wait_sec: 30.0
   safety_limits:
-    max_abs_steering: 20.0
-    max_steering_rate: 30.0
+    max_abs_steering: 40.0
+    max_steering_rate: 50.0
+    max_abs_lateral_accel_mps2: 1.5
+  allow_command_step: false
   abort_policy:
     speed_range_enforced: true
     reserved_checks:
@@ -31,14 +33,16 @@
   command_profile:
     type: chirp
     baseline: 0.0
-    amplitude: 2.0
+    amplitude: 10.0
     start_time_sec: 0.0
-    end_time_sec: 120.0
-    duration_sec: 120.0
+    end_time_sec: 30.0
+    duration_sec: 30.0
     frequency_start_hz: 0.05
-    frequency_end_hz: 2.0
+    frequency_end_hz: 0.5
     method: logarithmic
     bit_duration_sec: 0.25
     prbs_seed: 7
-    prbs_low: -2.0
-    prbs_high: 2.0
+    pulse_duration_sec: 1.0
+    frequency_hz: 0.5
+    prbs_low: -10.0
+    prbs_high: 10.0

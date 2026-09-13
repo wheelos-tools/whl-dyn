@@ -40,13 +40,15 @@ class ClosedLoopTrajectoryRunner:
         self.control_topic = control_topic
         self._latest_localization = None
         self._latest = {}
+        self._latest_arrival_wall = {}
+        self._case_start_wall = None
         self._lock = threading.Lock()
         self._samples = []
 
     def subscribe(self):
-        from modules.common_msgs.chassis_msgs import chassis_pb2
-        from modules.common_msgs.control_msgs import control_cmd_pb2
-        from modules.common_msgs.localization_msgs import localization_pb2
+        from wheelos_msgs.chassis_msgs import chassis_pb2
+        from wheelos_msgs.control_msgs import control_cmd_pb2
+        from wheelos_msgs.localization_msgs import localization_pb2
 
         self.node.create_reader(
             "/apollo/localization/pose", localization_pb2.LocalizationEstimate,
@@ -58,6 +60,7 @@ class ClosedLoopTrajectoryRunner:
 
     def _on_localization(self, message):
         self._latest_localization = message
+        self._latest_arrival_wall["localization"] = time.monotonic()
         pose = message.pose
         self._put({
             "source_time_sec": float(
@@ -68,10 +71,11 @@ class ClosedLoopTrajectoryRunner:
             "y": float(pose.position.y),
             "heading_rad": float(pose.heading),
             "yaw_rate_radps": float(pose.angular_velocity_vrf.z),
-            "lateral_accel_mps2": float(pose.linear_acceleration_vrf.x),
+            "lateral_accel_mps2": -float(pose.linear_acceleration_vrf.x),
         })
 
     def _on_chassis(self, message):
+        self._latest_arrival_wall["chassis"] = time.monotonic()
         self._put({
             "chassis_source_time_sec": float(message.header.timestamp_sec),
             "speed_mps": float(message.speed_mps),
@@ -80,18 +84,43 @@ class ClosedLoopTrajectoryRunner:
         })
 
     def _on_control(self, message):
-        debug = getattr(getattr(message, "debug", None), "simple_mpc_debug", None)
+        self._latest_arrival_wall["control"] = time.monotonic()
+        debug_container = getattr(message, "debug", None)
+        debug = None
+        for field_name in ("simple_lat_debug", "simple_mpc_debug"):
+            if debug_container is None:
+                break
+            try:
+                if debug_container.HasField(field_name):
+                    debug = getattr(debug_container, field_name)
+                    break
+            except ValueError:
+                debug = getattr(debug_container, field_name, None)
+                if debug is not None:
+                    break
+        debug_values = {
+            "control_debug_available": debug is not None,
+            "lateral_error_m": float("nan"),
+            "heading_error_rad": float("nan"),
+            "reference_kappa_1pm": float("nan"),
+            "steer_feedforward": float("nan"),
+            "steer_feedback_control": float("nan"),
+        }
+        if debug is not None:
+            debug_values.update({
+                "lateral_error_m": float(getattr(debug, "lateral_error", float("nan"))),
+                "heading_error_rad": float(getattr(debug, "heading_error", float("nan"))),
+                "reference_kappa_1pm": float(getattr(debug, "curvature", float("nan"))),
+                "steer_feedforward": float(
+                    getattr(debug, "steer_angle_feedforward", float("nan"))),
+                "steer_feedback_control": float(
+                    getattr(debug, "steer_angle_feedback", float("nan"))),
+            })
         self._put({
             "control_source_time_sec": float(message.header.timestamp_sec),
             "steering_command": float(message.steering_target),
             "control_speed_target_mps": float(message.speed),
-            "lateral_error_m": float(getattr(debug, "lateral_error", float("nan"))),
-            "heading_error_rad": float(getattr(debug, "heading_error", float("nan"))),
-            "reference_kappa_1pm": float(getattr(debug, "curvature", float("nan"))),
-            "steer_feedforward": float(
-                getattr(debug, "steer_angle_feedforward", float("nan"))),
-            "steer_feedback_control": float(
-                getattr(debug, "steer_angle_feedback", float("nan"))),
+            **debug_values,
         })
 
     def _put(self, values):
@@ -118,6 +147,11 @@ class ClosedLoopTrajectoryRunner:
             sample["time_aligned"] = (
                 len(source_times) == 3 and sample["alignment_skew_sec"] <=
                 float(max_alignment_skew_sec))
+            sample["sources_fresh"] = (
+                self._case_start_wall is not None and
+                all(self._latest_arrival_wall.get(name, 0.0) >=
+                    self._case_start_wall
+                    for name in ("localization", "chassis", "control")))
             for name in (
                     "localization_source_time_sec",
                     "chassis_source_time_sec",
@@ -146,6 +180,12 @@ class ClosedLoopTrajectoryRunner:
 
         trajectory = case.get("trajectory", {})
         duration = float(case["duration_sec"])
+        self._samples = []
+        with self._lock:
+            self._latest.clear()
+            self._latest_arrival_wall.clear()
+        self._latest_localization = None
+        self._case_start_wall = time.monotonic()
         storage = RunStorage(output_root, case["case_name"], {
             "case": case,
             "publisher_contract": (
@@ -179,10 +219,34 @@ class ClosedLoopTrajectoryRunner:
                 sample = self._aligned_snapshot(
                     case.get("max_alignment_skew_sec", 0.02))
                 sample["elapsed_sec"] = elapsed
+                sample["time_aligned"] = (
+                    sample.get("time_aligned", False) and
+                    sample.get("sources_fresh", False))
                 sample["sample_index"] = len(self._samples)
                 self._samples.append(sample)
                 next_tick += publish_period
                 time.sleep(max(0.0, next_tick - time.monotonic()))
+            aligned = [
+                sample for sample in self._samples
+                if sample.get("time_aligned") is True
+            ]
+            required = (
+                "lateral_error_m", "heading_error_rad",
+                "reference_kappa_1pm",
+            )
+            valid_debug = [
+                sample for sample in aligned
+                if sample.get("control_debug_available") and
+                all(math.isfinite(float(sample.get(field, float("nan"))))
+                    for field in required)
+            ]
+            minimum_aligned = max(1, int(0.8 * len(self._samples)))
+            if len(aligned) < minimum_aligned:
+                raise RuntimeError(
+                    "closed-loop sources did not meet alignment threshold")
+            if len(valid_debug) < minimum_aligned:
+                raise RuntimeError(
+                    "closed-loop controller debug fields are unavailable")
         except BaseException as error:
             abort_reason = str(error) or (
                 "interrupted by user" if isinstance(error, KeyboardInterrupt)
@@ -203,7 +267,8 @@ class ClosedLoopTrajectoryRunner:
     def _send_safe_stop(self):
         """Publish a bounded direct stop after a direct-planning experiment."""
 
-        from modules.common_msgs.control_msgs import control_cmd_pb2
+        from wheelos_msgs.chassis_msgs import chassis_pb2
+        from wheelos_msgs.control_msgs import control_cmd_pb2
 
         writer = self.node.create_writer(self.control_topic,
                                          control_cmd_pb2.ControlCommand)
@@ -214,6 +279,7 @@ class ClosedLoopTrajectoryRunner:
             command.speed = 0.0
             command.steering_target = 0.0
             command.brake = 30.0
+            command.gear_location = chassis_pb2.Chassis.GEAR_DRIVE
             command.pad_msg.driving_mode = 1
             command.pad_msg.action = 1
             writer.write(command)

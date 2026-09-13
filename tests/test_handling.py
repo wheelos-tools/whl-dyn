@@ -3,6 +3,7 @@ import pandas as pd
 
 from whl_dyn.collection.closed_loop import build_path_from_case
 from whl_dyn.planning.handling import (
+    generate_phase1_plan,
     generate_closed_loop_curve_plan,
     generate_open_loop_identification_plan,
     generate_steady_state_circle_plan,
@@ -65,9 +66,26 @@ def test_open_loop_plan_contains_step_and_slow_ramp_both_directions():
     assert len(cases) == 4
     assert {case["test_type"] for case in cases} == {
         "steering_step", "steering_deadzone_rate"}
+    assert all(case["sampling_rate_hz"] == 50.0 for case in cases)
+    assert all(case["duration_sec"] == 20.0 for case in cases
+               if case["test_type"] == "steering_deadzone_rate")
     assert all(case["speed_gate"]["target_mps"] == 2.0 for case in cases)
     assert all(case["allow_command_step"] for case in cases
                if case["test_type"] == "steering_step")
+    assert all(case["command_profile"]["start_time_sec"] == 1.0
+               for case in cases if case["test_type"] == "steering_step")
+
+
+def test_phase1_plan_contains_time_and_frequency_domain_cases():
+    cases = generate_phase1_plan(output="", amplitude=2.0)
+    assert len(cases) == 8
+    assert {case["test_type"] for case in cases} == {
+        "steering_step", "steering_deadzone_rate",
+        "lateral_frequency_response",
+    }
+    assert {case["mode"] for case in cases
+            if case["test_type"] == "lateral_frequency_response"} == {
+        "chirp", "prbs"}
 
 
 def test_steady_turn_matrix_is_open_loop_and_has_both_directions():
@@ -149,6 +167,33 @@ def test_handling_metrics_fit_known_understeer_gradient_and_tracking():
     assert np.isclose(handling["understeer_gradient_rad_per_mps2"], 2.0)
     assert np.isclose(handling["steering_offset_rad"], 0.1)
     assert np.isclose(tracking["ey_peak_m"], 0.04)
+
+
+def test_handling_metrics_reject_invalid_quality_rows():
+    frame = pd.DataFrame({
+        "lateral_error_m": [0.01, 0.02],
+        "heading_error_rad": [0.01, 0.02],
+        "sources_fresh": [True, False],
+    })
+    try:
+        tracking_metrics(frame)
+    except ValueError as error:
+        assert "sources_fresh" in str(error)
+    else:
+        raise AssertionError("stale rows were silently discarded")
+
+
+def test_handling_metrics_reject_nonfinite_required_rows():
+    frame = pd.DataFrame({
+        "lateral_error_m": [0.01, np.nan],
+        "heading_error_rad": [0.01, 0.02],
+    })
+    try:
+        tracking_metrics(frame)
+    except ValueError as error:
+        assert "non-finite" in str(error)
+    else:
+        raise AssertionError("invalid rows were silently discarded")
 
 
 def test_fixed_steering_metrics_report_available_limit_signals():

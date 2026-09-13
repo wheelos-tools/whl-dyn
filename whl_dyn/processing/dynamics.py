@@ -25,7 +25,9 @@ def _signals(df, input_col=None, output_col=None):
     in_col = _column(df, input_col, ("command", "ctl_throttle", "input"))
     out_col = _column(df, output_col,
                       ("feedback", "output", "imu_accel_y", "acceleration", "speed_mps"))
-    values = df[[time_col, in_col, out_col]].apply(pd.to_numeric, errors="coerce").dropna()
+    values = df[[time_col, in_col, out_col]].apply(pd.to_numeric, errors="coerce")
+    if not np.isfinite(values.to_numpy(dtype=float)).all():
+        raise ValueError("dynamic data contains non-finite required samples")
     if len(values) < 4:
         raise ValueError("at least four valid samples are required")
     values = values.sort_values(time_col).drop_duplicates(time_col)

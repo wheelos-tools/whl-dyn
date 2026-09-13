@@ -367,7 +367,12 @@ def render_lateral_plan(runtime_dir: Path):
     # 4. Phase 2.1: Steady-State Circles
     elif test_type == "phase2_circles":
         with left_col:
-            p1_c_steer = st.text_input("转向角矩阵 (逗号分隔)", value="1.0, 2.0, 3.0", key="p1_c_steer")
+            p1_c_steer = st.text_input(
+                "转向角矩阵 (方向盘百分比 %, 逗号分隔)",
+                value="50, 80, 100",
+                key="p1_c_steer",
+                help="填写方向盘转角相对于满量程的百分比，例如 50, 80, 100。",
+            )
             p1_c_longitudinal_mode = st.selectbox(
                 "纵向控制模式",
                 ["speed", "throttle"],
@@ -383,7 +388,7 @@ def render_lateral_plan(runtime_dir: Path):
                 speed_label, value="1.0, 2.0, 3.0", key="p1_c_speeds")
             p1_c_turns = st.number_input("采集圈数", min_value=0.1, value=1.0, key="p1_c_turns")
         with right_col:
-            p1_c_ramp = st.number_input("转向进入速率 (命令单位/s)", min_value=0.1, value=0.5, key="p1_c_ramp")
+            p1_c_ramp = st.number_input("转向进入速率 (命令单位/s)", min_value=0.1, value=5.0, key="p1_c_ramp")
             p1_c_accel = st.number_input("最大侧向加速度 (m/s²)", min_value=0.5, value=1.5, key="p1_c_accel")
             p1_c_max_duration = st.number_input("单工况最长时间 (s)", min_value=1.0, value=120.0, key="p1_c_max_duration")
             if p1_c_longitudinal_mode == "throttle":
@@ -715,10 +720,13 @@ def render_lateral_collect(runtime_dir: Path):
             suffix = f"：{reason}" if reason else ""
             st.error(f"⚠️ 采集进程已退出 (返回码 {last_rc}){suffix}")
 
-        st.markdown("**实时日志**")
-        logs = st.session_state.get("lateral_logs", [])
-        log_text = "\n".join(logs[-150:]) if logs else "暂无运行日志。"
-        st.text_area("实时日志", value=log_text, height=220, label_visibility="collapsed", key="lat_log_area")
+        if running:
+            st.info("采集运行中，结束后显示运行日志。")
+        else:
+            st.markdown("**运行日志**")
+            logs = st.session_state.get("lateral_logs", [])
+            log_text = "\n".join(logs[-150:]) if logs else "暂无运行日志。"
+            st.text_area("运行日志", value=log_text, height=220, label_visibility="collapsed", key="lat_log_area")
 
 
 def _render_bode_plotly(bode_df: pd.DataFrame, title: str):

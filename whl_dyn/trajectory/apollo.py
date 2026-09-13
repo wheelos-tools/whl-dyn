@@ -9,8 +9,10 @@ class ContinuousTrajectoryPublisher:
     """Publish overlapping ADCTrajectory windows from one immutable path."""
 
     def __init__(self, node, topic="/apollo/planning", module_name="whl_dyn_path"):
-        from modules.common_msgs.planning_msgs import planning_pb2
+        from wheelos_msgs.chassis_msgs import chassis_pb2
+        from wheelos_msgs.planning_msgs import planning_pb2
 
+        self._chassis_pb2 = chassis_pb2
         self._planning_pb2 = planning_pb2
         self._writer = node.create_writer(topic, planning_pb2.ADCTrajectory)
         self._module_name = module_name
@@ -40,6 +42,7 @@ class ContinuousTrajectoryPublisher:
         trajectory.total_path_length = float(speed_mps) * float(horizon_sec)
         trajectory.is_replan = False
         trajectory.trajectory_type = self._planning_pb2.ADCTrajectory.NORMAL
+        trajectory.gear = self._chassis_pb2.Chassis.GEAR_DRIVE
         window_start = float(elapsed_sec) + float(planning_cycle_time_sec)
         points = build_trajectory_window(
             path, window_start, speed_mps, horizon_sec, point_interval_sec,

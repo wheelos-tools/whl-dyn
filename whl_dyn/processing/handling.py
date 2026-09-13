@@ -5,7 +5,12 @@ import pandas as pd
 
 
 def _finite(frame, columns):
-    values = frame.loc[:, columns].apply(pd.to_numeric, errors="coerce").dropna()
+    values = frame.loc[:, columns].apply(pd.to_numeric, errors="coerce")
+    invalid = ~np.isfinite(values.to_numpy(dtype=float)).all(axis=1)
+    if np.any(invalid):
+        raise ValueError(
+            "non-finite samples in required signals: {0}".format(
+                ", ".join(columns)))
     if values.empty:
         raise ValueError("no finite samples for {0}".format(", ".join(columns)))
     return values
@@ -14,16 +19,27 @@ def _finite(frame, columns):
 def _aligned_frame(frame):
     """Keep only collection rows that pass the persisted time-alignment gate."""
 
-    if "time_aligned" not in frame:
-        return frame
-    aligned_flag = frame["time_aligned"]
-    if aligned_flag.dtype == bool:
-        mask = aligned_flag
+    if "time_aligned" in frame:
+        aligned_flag = frame["time_aligned"]
+        if aligned_flag.dtype == bool:
+            mask = aligned_flag
+        else:
+            mask = aligned_flag.astype(str).str.lower().isin(
+                ("true", "1", "yes"))
+        aligned = frame.loc[mask].copy()
+        if aligned.empty:
+            raise ValueError("no time-aligned samples remain")
     else:
-        mask = aligned_flag.astype(str).str.lower().isin(("true", "1", "yes"))
-    aligned = frame.loc[mask].copy()
-    if aligned.empty:
-        raise ValueError("no time-aligned samples remain")
+        aligned = frame.copy()
+    for quality_column in ("sources_fresh", "localization_signals_valid"):
+        if quality_column in aligned:
+            quality = aligned[quality_column]
+            if quality.dtype != bool:
+                quality = quality.astype(str).str.lower().isin(
+                    ("true", "1", "yes"))
+            if not bool(quality.all()):
+                raise ValueError(
+                    "quality gate failed for {0}".format(quality_column))
     return aligned
 
 

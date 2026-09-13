@@ -51,18 +51,36 @@ def localization_signals(message, received_time):
     """Normalize localization output into the public collection schema."""
 
     pose = getattr(message, "pose", None)
-    velocity = getattr(pose, "linear_velocity", None)
+    world_vx = nested_value(message, "pose.linear_velocity.x")
+    world_vy = nested_value(message, "pose.linear_velocity.y")
+    heading = nested_value(message, "pose.heading")
+    yaw_rate = nested_value(message, "pose.angular_velocity_vrf.z")
+    lateral_accel_vrf_right = nested_value(
+        message, "pose.linear_acceleration_vrf.x")
+    required = (world_vx, world_vy, heading, yaw_rate,
+                lateral_accel_vrf_right)
+    valid = all(value is not None and math.isfinite(float(value))
+                for value in required)
+    world_vx = float(world_vx) if world_vx is not None else float("nan")
+    world_vy = float(world_vy) if world_vy is not None else float("nan")
+    heading = float(heading) if heading is not None else float("nan")
     speed = math.hypot(
-        float(getattr(velocity, "x", 0.0)),
-        float(getattr(velocity, "y", 0.0)),
+        world_vx, world_vy,
     )
+    cos_heading = math.cos(heading)
+    sin_heading = math.sin(heading)
     return {
         "localization_source_time_sec": message_time(message, received_time),
+        "localization_signals_valid": valid,
         "speed_mps": speed,
-        "yaw_rate_radps": float(nested_value(
-            message, "pose.angular_velocity_vrf.z", 0.0)),
-        "lateral_accel_mps2": float(nested_value(
-            message, "pose.linear_acceleration_vrf.x", 0.0)),
+        "longitudinal_velocity_mps": (
+            world_vx * cos_heading + world_vy * sin_heading),
+        "lateral_velocity_mps": (
+            -world_vx * sin_heading + world_vy * cos_heading),
+        "yaw_rate_radps": float(yaw_rate) if yaw_rate is not None else float("nan"),
+        "lateral_accel_mps2": (
+            -float(lateral_accel_vrf_right)
+            if lateral_accel_vrf_right is not None else float("nan")),
         "roll_rad": float(nested_value(message, "pose.euler_angles.x", 0.0)),
     }
 
@@ -78,6 +96,7 @@ class LateralSignalCollector:
         self._latest = {}
         self._detail_class = self._load_detail_class(signal_config.get("detail_message"))
         self._writer = None
+        self._readers = []
         self._sequence_num = 0
 
     @staticmethod
@@ -94,17 +113,23 @@ class LateralSignalCollector:
     def subscribe(self):
         """Subscribe to generic Apollo sources after runtime imports are available."""
 
-        from modules.common_msgs.chassis_msgs import chassis_detail_pb2, chassis_pb2
-        from modules.common_msgs.localization_msgs import localization_pb2
+        try:
+            from modules.common_msgs.chassis_msgs import chassis_detail_pb2, chassis_pb2
+            from modules.common_msgs.localization_msgs import localization_pb2
+        except ModuleNotFoundError:
+            from wheelos_msgs.chassis_msgs import chassis_detail_pb2, chassis_pb2
+            from wheelos_msgs.localization_msgs import localization_pb2
 
-        self.node.create_reader(
-            self.topics["chassis"], chassis_pb2.Chassis, self._on_chassis)
-        self.node.create_reader(
-            self.topics["chassis_detail"], chassis_detail_pb2.ChassisDetail,
-            self._on_chassis_detail)
-        self.node.create_reader(
-            self.topics["localization"], localization_pb2.LocalizationEstimate,
-            self._on_localization)
+        self._readers = [
+            self.node.create_reader(
+                self.topics["chassis"], chassis_pb2.Chassis, self._on_chassis),
+            self.node.create_reader(
+                self.topics["chassis_detail"], chassis_detail_pb2.ChassisDetail,
+                self._on_chassis_detail),
+            self.node.create_reader(
+                self.topics["localization"], localization_pb2.LocalizationEstimate,
+                self._on_localization),
+        ]
 
     def _put(self, values):
         values["received_time_sec"] = time.time()
@@ -113,11 +138,21 @@ class LateralSignalCollector:
 
     def _on_chassis(self, message):
         now = time.time()
-        self._put({
+        values = {
             "chassis_source_time_sec": message_time(message, now),
             "chassis_speed_mps": float(getattr(message, "speed_mps", 0.0)),
             "driving_mode": int(getattr(message, "driving_mode", 0)),
-        })
+        }
+        for signal_name, field_path in self.config.get(
+                "chassis_fields", {}).items():
+            value = nested_value(message, field_path)
+            if value is not None:
+                normalized = float(value)
+                if signal_name == "steering_feedback":
+                    normalized *= float(
+                        self.config.get("steering_feedback_scale", 1.0))
+                values[str(signal_name)] = normalized
+        self._put(values)
 
     def _on_chassis_detail(self, message):
         if not message.HasField("chassis_extension"):
@@ -169,6 +204,13 @@ class LateralSignalCollector:
     def _on_localization(self, message):
         self._put(localization_signals(message, time.time()))
 
+    def _steering_feedback_source(self):
+        if "steering_feedback" in self.config.get("detail_fields", {}):
+            return "chassis_detail"
+        if "steering_feedback" in self.config.get("chassis_fields", {}):
+            return "chassis"
+        return None
+
     def snapshot(self):
         """Return one fixed-time snapshot with alignment diagnostics.
 
@@ -197,8 +239,10 @@ class LateralSignalCollector:
             sample["alignment_skew_sec"] = max(source_times) - min(source_times)
             required_sources = ["localization_source_time_sec",
                                 "chassis_source_time_sec"]
-            if "steering_feedback" in sample:
-                required_sources.append("chassis_detail_source_time_sec")
+            feedback_source = self._steering_feedback_source()
+            if "steering_feedback" in sample and feedback_source:
+                required_sources.append(
+                    "{}_source_time_sec".format(feedback_source))
             sample["time_aligned"] = (
                 all(name in sample for name in required_sources) and
                 sample["alignment_skew_sec"] <= float(
@@ -216,11 +260,12 @@ class LateralSignalCollector:
             snapshot = self.snapshot()
             source_ready = ("localization_source_time_sec" in snapshot and
                             "chassis_source_time_sec" in snapshot)
-            feedback_ready = ("steering_feedback" in snapshot and
-                              snapshot.get("chassis_detail_age_sec",
-                                           float("inf")) <= float(
-                                               self.config.get(
-                                                   "max_feedback_age_sec", 0.5)))
+            feedback_source = self._steering_feedback_source() or "chassis"
+            feedback_ready = (
+                "steering_feedback" in snapshot and
+                snapshot.get("{}_age_sec".format(feedback_source),
+                             float("inf")) <= float(
+                                 self.config.get("max_feedback_age_sec", 0.5)))
             if source_ready and (not require_steering_feedback or feedback_ready):
                 return True
             time.sleep(0.05)
@@ -252,8 +297,12 @@ class LateralSignalCollector:
         stable_duration = float(gate.get("stable_duration_sec", 0.0))
         stability_tolerance = float(gate.get(
             "stability_tolerance_mps", gate.get("tolerance_mps", 0.15)))
+        min_in_band_fraction = float(gate.get(
+            "stability_min_in_band_fraction", 0.8))
         if stable_duration <= 0.0 or stability_tolerance < 0.0:
             raise ValueError("speed stability settings must be non-negative")
+        if not 0.0 <= min_in_band_fraction <= 1.0:
+            raise ValueError("speed stability in-band fraction must be between 0 and 1")
         deadline = time.monotonic() + float(timeout_sec)
         stable_samples = deque()
         while time.monotonic() < deadline:
@@ -264,15 +313,23 @@ class LateralSignalCollector:
             now = time.monotonic()
             snapshot = self.snapshot()
             speed = snapshot.get("chassis_speed_mps", snapshot.get("speed_mps"))
-            if speed is not None and self._speed_in_gate(gate):
+            in_gate = (
+                speed is not None and
+                float(gate["min_mps"]) <= float(speed) <= float(gate["max_mps"]))
+            if in_gate:
                 stable_samples.append((now, float(speed)))
-                while stable_samples and now - stable_samples[0][0] > stable_duration:
-                    stable_samples.popleft()
                 speeds = [value for _, value in stable_samples]
                 if (stable_samples and
-                        now - stable_samples[0][0] >= stable_duration and
-                        max(speeds) - min(speeds) <= stability_tolerance):
-                    return float(sum(speeds) / len(speeds))
+                        now - stable_samples[0][0] >= stable_duration):
+                    in_band_count = sum(
+                        abs(value - float(gate["target_mps"])) <=
+                        stability_tolerance for value in speeds)
+                    if in_band_count / len(speeds) >= min_in_band_fraction:
+                        return float(sum(speeds) / len(speeds))
+                while (stable_samples and
+                       len(stable_samples) > 1 and
+                       now - stable_samples[0][0] > stable_duration):
+                    stable_samples.popleft()
             else:
                 stable_samples.clear()
             time.sleep(0.05)
@@ -293,7 +350,8 @@ class LateralSignalCollector:
             command = target * elapsed / ramp_end if ramp_end else target
             if abs(command) > maximum:
                 raise RuntimeError("steering profile exceeds configured limit")
-            if abs(command - previous) / (1.0 / sampling_rate) > maximum_rate:
+            command_rate = abs(command - previous) * sampling_rate
+            if command_rate > maximum_rate + 1e-9:
                 raise RuntimeError("steering profile exceeds configured rate")
             self.publish_control(command, 0.0)
             previous = command
@@ -302,7 +360,10 @@ class LateralSignalCollector:
 
     def _control_writer(self):
         if self._writer is None:
-            from modules.common_msgs.control_msgs import control_cmd_pb2
+            try:
+                from modules.common_msgs.control_msgs import control_cmd_pb2
+            except ModuleNotFoundError:
+                from wheelos_msgs.control_msgs import control_cmd_pb2
 
             self._writer = self.node.create_writer(
                 self.topics["control"], control_cmd_pb2.ControlCommand)
@@ -312,7 +373,10 @@ class LateralSignalCollector:
                         longitudinal=None):
         """Publish coupled longitudinal hold and lateral excitation commands."""
 
-        from modules.common_msgs.control_msgs import control_cmd_pb2
+        try:
+            from modules.common_msgs.control_msgs import control_cmd_pb2
+        except ModuleNotFoundError:
+            from wheelos_msgs.control_msgs import control_cmd_pb2
 
         command_scale = float(self.config.get("control_steering_scale", 1.0))
         message = control_cmd_pb2.ControlCommand()
@@ -326,6 +390,8 @@ class LateralSignalCollector:
             "throttle": 0.0,
             "brake": 0.0,
         }
+        control.setdefault(
+            "gear_location", int(self.config.get("control_gear_location", 3)))
         mode = str(control.get("mode", "speed")).lower()
         if mode not in ("speed", "throttle"):
             raise ValueError("longitudinal control mode must be speed or throttle")
@@ -383,6 +449,8 @@ class LateralSignalCollector:
             "brake": 0.0,
         }))
         stable_speed_mean = None
+        turn_count_reached = False
+        turn_count = float(case.get("turn_count", 0.0)) if execute else 0.0
         try:
             if not self.wait_for_sources(source_timeout_sec, execute):
                 raise RuntimeError(
@@ -417,7 +485,6 @@ class LateralSignalCollector:
             started = time.monotonic()
             next_sample = started
             previous_command = 0.0
-            turn_count = float(case.get("turn_count", 0.0)) if execute else 0.0
             target_turn_angle = 2.0 * math.pi * turn_count
             accumulated_turn_angle = 0.0
             turn_count_reached = False
@@ -439,27 +506,46 @@ class LateralSignalCollector:
                     )
                     if abs(command) > maximum:
                         raise RuntimeError("steering profile exceeds configured limit")
-                    if (not case.get("allow_command_step", False) and elapsed > 0.0 and
+                    if (not case.get("allow_command_step", False) and
+                            samples and
                             abs(command - previous_command) / (1.0 / sampling_rate) >
                             maximum_rate):
                         raise RuntimeError("steering profile exceeds configured rate")
                     if not self._speed_in_gate(speed_gate):
                         raise RuntimeError("vehicle left configured speed range")
                     feedback_snapshot = self.snapshot()
+                    if not feedback_snapshot.get("time_aligned", False):
+                        raise RuntimeError(
+                            "source timestamps exceeded alignment skew")
+                    if not feedback_snapshot.get("localization_signals_valid", False):
+                        raise RuntimeError(
+                            "localization dynamics signals are unavailable")
+                    for source in ("localization", "chassis"):
+                        age = feedback_snapshot.get(
+                            "{}_age_sec".format(source), float("inf"))
+                        if not math.isfinite(float(age)) or float(age) > float(
+                                self.config.get("max_source_age_sec", 0.5)):
+                            raise RuntimeError(
+                                "{} source became stale".format(source))
                     feedback = feedback_snapshot.get("steering_feedback")
+                    feedback_source = self._steering_feedback_source() or "chassis"
                     feedback_age = feedback_snapshot.get(
-                        "chassis_detail_age_sec", float("inf"))
+                        "{}_age_sec".format(feedback_source), float("inf"))
                     if float(feedback_age) > float(
                             self.config.get("max_feedback_age_sec", 0.5)):
                         raise RuntimeError("steering feedback became stale")
-                    if (feedback is None or abs(float(feedback)) >
-                            maximum_feedback):
+                    if (feedback is None or not math.isfinite(float(feedback)) or
+                            abs(float(feedback)) > maximum_feedback):
                         raise RuntimeError(
                             "actual steering feedback exceeds configured limit")
                     max_lateral_accel = safety.get("max_abs_lateral_accel_mps2")
-                    lateral_accel = self.snapshot().get("lateral_accel_mps2")
-                    if (max_lateral_accel is not None and lateral_accel is not None
-                            and abs(float(lateral_accel)) >
+                    lateral_accel = feedback_snapshot.get("lateral_accel_mps2")
+                    if (lateral_accel is None or
+                            not math.isfinite(float(lateral_accel))):
+                        raise RuntimeError(
+                            "lateral acceleration became unavailable")
+                    if (max_lateral_accel is not None and
+                            abs(float(lateral_accel)) >
                             float(max_lateral_accel)):
                         raise RuntimeError(
                             "vehicle exceeded lateral acceleration limit")
@@ -471,8 +557,10 @@ class LateralSignalCollector:
                 sample["steering_command"] = previous_command if execute else float("nan")
                 sample["case_phase"] = (
                     "steady" if steering_before_speed else
-                    _case_phase(profile, elapsed)
-                )
+                    ("baseline" if profile.get("type") == "step" and
+                     elapsed < float(profile.get("start_time_sec", 0.0))
+                     else ("step_response" if profile.get("type") == "step"
+                           else _case_phase(profile, elapsed))))
                 if execute and turn_count > 0.0:
                     sample_time = float(sample["collector_monotonic_sec"])
                     if previous_sample_time is not None:
@@ -515,7 +603,9 @@ class LateralSignalCollector:
                 "stage": "completed" if abort_reason is None else stage,
                 "abort_reason": abort_reason,
                 "sample_count": len(samples),
-                "turn_count_reached": turn_count_reached if execute else None,
+                "turn_count_reached": (
+                    turn_count_reached if execute and turn_count > 0.0
+                    else None),
                 "stable_speed_mean_mps": stable_speed_mean,
             })
         return storage.path

@@ -22,8 +22,8 @@ def _parser():
     plan.add_argument("--duration-sec", type=float, default=120.0)
     plan.add_argument("--sampling-rate-hz", type=float, default=100.0)
     plan.add_argument("--frequency-start-hz", type=float, default=0.05)
-    plan.add_argument("--frequency-end-hz", type=float, default=2.0)
-    plan.add_argument("--steering-amplitude", type=float, default=2.0)
+    plan.add_argument("--frequency-end-hz", type=float, default=0.5)
+    plan.add_argument("--steering-amplitude", type=float, default=10.0)
     plan.add_argument("--speed-min-mps", type=float, default=0.0)
     plan.add_argument("--speed-max-mps", type=float, default=3.0)
     plan.add_argument("--target-speed-mps", type=float, default=2.0)
@@ -34,8 +34,8 @@ def _parser():
     plan.add_argument("--prbs-seed", type=int, default=7)
     plan.add_argument("--pulse-duration-sec", type=float, default=1.0)
     plan.add_argument("--sine-frequency-hz", type=float, default=0.5)
-    plan.add_argument("--max-steering", type=float, default=20.0)
-    plan.add_argument("--max-steering-rate", type=float, default=30.0)
+    plan.add_argument("--max-steering", type=float, default=40.0)
+    plan.add_argument("--max-steering-rate", type=float, default=50.0)
 
     collect = subcommands.add_parser("collect-lateral")
     collect.add_argument("--plan", required=True)
@@ -55,8 +55,17 @@ def _parser():
     open_loop = subcommands.add_parser("plan-open-loop")
     open_loop.add_argument("--output", default="open_loop_identification.yaml")
     open_loop.add_argument("--target-speed-mps", type=float, default=2.0)
-    open_loop.add_argument("--amplitude", type=float, default=2.0)
+    open_loop.add_argument("--amplitude", type=float, default=10.0)
     open_loop.add_argument("--ramp-rate", type=float, default=1.0)
+    phase1 = subcommands.add_parser("plan-phase1")
+    phase1.add_argument("--output", default="phase1_complete.yaml")
+    phase1.add_argument("--target-speed-mps", type=float, default=2.0)
+    phase1.add_argument("--amplitude", type=float, default=10.0)
+    phase1.add_argument("--ramp-rate", type=float, default=1.0)
+    analyze_phase1 = subcommands.add_parser("analyze-phase1")
+    analyze_phase1.add_argument("--run-root", required=True)
+    analyze_phase1.add_argument("--plan", required=True)
+    analyze_phase1.add_argument("--output")
 
     circles = subcommands.add_parser("plan-circles")
     circles.add_argument("--output", default="steady_state_circles.yaml")
@@ -215,6 +224,7 @@ def main():
     known_commands = {
         "plan-lateral", "collect-lateral", "validate-open-loop", "analyze-lateral", "plan-open-loop",
         "plan-circles", "analyze-steady-state", "plan-closed-loop", "run-closed-loop",
+        "plan-phase1", "analyze-phase1",
     }
     if len(sys.argv) > 1 and sys.argv[1] in known_commands:
         args = _parser().parse_args()
@@ -255,6 +265,16 @@ def main():
             )
 
             run_dir = Path(args.run_dir)
+            status_path = run_dir / "status.json"
+            if not status_path.exists():
+                raise ValueError("cannot analyze a run without status.json")
+            status = json.loads(status_path.read_text())
+            if not status.get("completed", False) or status.get("abort_reason"):
+                raise ValueError(
+                    "cannot analyze incomplete run: {0}".format(
+                        status.get("abort_reason") or "completed=false"))
+            if status.get("turn_count_reached") is False:
+                raise ValueError("cannot analyze run before completing its turn")
             selected = select_steady_state_samples(
                 pd.read_csv(run_dir / "samples.csv"),
                 args.target_speed_mps, args.speed_tolerance_mps)
@@ -283,6 +303,24 @@ def main():
                 output=args.output, target_speed_mps=args.target_speed_mps,
                 amplitude=args.amplitude, ramp_rate=args.ramp_rate)
             print(args.output)
+            return
+        if args.command == "plan-phase1":
+            from whl_dyn.planning.handling import generate_phase1_plan
+            generate_phase1_plan(
+                output=args.output, target_speed_mps=args.target_speed_mps,
+                amplitude=args.amplitude, ramp_rate=args.ramp_rate)
+            print(args.output)
+            return
+        if args.command == "analyze-phase1":
+            import yaml
+            from whl_dyn.processing.lateral_dynamics import analyze_phase1_suite
+            plan = None
+            if args.plan:
+                plan = yaml.safe_load(Path(args.plan).read_text()) or []
+            report = analyze_phase1_suite(args.run_root, expected_plan=plan)
+            output = Path(args.output or Path(args.run_root) / "phase1_report.json")
+            output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+            print("{0}: {1}".format(report["status"], output))
             return
         if args.command == "plan-circles":
             from whl_dyn.planning.handling import generate_steady_state_circle_plan

@@ -1457,15 +1457,18 @@ if category == "🚗 油门/刹车":
                             state["rows"] = 0
                         st.rerun()
 
-            st.markdown("**实时日志**")
-            log_text = "\n".join(runtime.get("logs", [])[-200:])
-            st.text_area(
-                "日志",
-                value=log_text,
-                height=300,
-                label_visibility="collapsed",
-                key="log_area",
-            )
+            if running:
+                st.info("采集运行中，结束后显示运行日志。")
+            else:
+                st.markdown("**运行日志**")
+                log_text = "\n".join(runtime.get("logs", [])[-200:])
+                st.text_area(
+                    "日志",
+                    value=log_text,
+                    height=300,
+                    label_visibility="collapsed",
+                    key="log_area",
+                )
 
             if running:
                 time.sleep(1)

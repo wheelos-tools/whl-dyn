@@ -12,11 +12,43 @@ class OpenLoopPlanConfig:
     output: str = "open_loop_identification.yaml"
     target_speed_mps: float = 2.0
     speed_tolerance_mps: float = 0.15
-    amplitude: float = 2.0
+    amplitude: float = 10.0
     step_hold_sec: float = 8.0
     ramp_rate: float = 1.0
-    max_steering: float = 20.0
-    max_steering_rate: float = 30.0
+    max_steering: float = 40.0
+    max_steering_rate: float = 50.0
+
+
+def generate_phase1_plan(output=None, **kwargs):
+    """Create the complete Phase 1 steering identification suite.
+
+    The suite deliberately combines time-domain and frequency-domain
+    excitation while keeping one vehicle-agnostic signal contract.
+    """
+
+    values = asdict(OpenLoopPlanConfig())
+    values.update(kwargs)
+    values["output"] = ""
+    cases = generate_open_loop_identification_plan(**values)
+    for mode, duration, suffix in (
+            ("chirp", 30.0, "chirp"),
+            ("prbs", 30.0, "prbs")):
+        from whl_dyn.planning.vehicle_dynamics import (
+            generate_lateral_frequency_plan,
+        )
+        for direction in (1.0, -1.0):
+            cases.extend(generate_lateral_frequency_plan(
+                output="", mode=mode, duration_sec=duration,
+                steering_amplitude=abs(float(values["amplitude"])),
+                target_speed_mps=values["target_speed_mps"],
+                speed_tolerance_mps=values["speed_tolerance_mps"],
+                max_steering=values["max_steering"],
+                max_steering_rate=values["max_steering_rate"],
+                case_name="phase1_{0}_{1:+g}".format(suffix, direction)))
+    if output:
+        with open(output, "w") as plan_file:
+            yaml.safe_dump(cases, plan_file, sort_keys=False)
+    return cases
 
 
 def generate_open_loop_identification_plan(config=None, output=None, **kwargs):
@@ -33,7 +65,9 @@ def generate_open_loop_identification_plan(config=None, output=None, **kwargs):
         "domain": "vehicle_dynamics",
         "phase": "open_loop_identification",
         "actuator": "steering",
-        "sampling_rate_hz": 100.0,
+        # Match the simulator's 20 ms control interval so command samples
+        # correspond one-to-one with applied control updates.
+        "sampling_rate_hz": 50.0,
         "input_signals": ["steering_command", "steering_feedback"],
         "output_signals": ["yaw_rate_radps", "lateral_accel_mps2"],
         "speed_gate": {
@@ -49,7 +83,9 @@ def generate_open_loop_identification_plan(config=None, output=None, **kwargs):
             "max_steering_rate": maximum_rate,
         },
     }
-    ramp_duration = 4.0 * amplitude / ramp_rate
+    # The ramp spans -amplitude to +amplitude, so its duration is the
+    # two-amplitude span divided by the requested command rate.
+    ramp_duration = 2.0 * amplitude / ramp_rate
     cases = []
     for direction in (1.0, -1.0):
         cases.append(dict(common, **{
@@ -58,7 +94,7 @@ def generate_open_loop_identification_plan(config=None, output=None, **kwargs):
             "duration_sec": float(values["step_hold_sec"]),
             "command_profile": {
                 "type": "step", "baseline": 0.0,
-                "amplitude": direction * amplitude, "start_time_sec": 0.0,
+                "amplitude": direction * amplitude, "start_time_sec": 1.0,
             },
             # A step intentionally excites the command input; the measured
             # wheel-rate limit, not the artificial command derivative, is the
@@ -94,7 +130,7 @@ class SteadyStateCircleConfig:
     longitudinal_mode: str = "speed"
     throttle_command: float = 0.0
     stable_speed_sec: float = 5.0
-    steering_ramp_rate: float = 0.5
+    steering_ramp_rate: float = 5.0
     max_lateral_accel_mps2: float = 1.5
     repeats: int = 3
 
@@ -168,6 +204,7 @@ def generate_steady_state_circle_plan(config=None, output=None, **kwargs):
                             "target_mps": float(speed),
                             "tolerance_mps": 0.15,
                             "stability_tolerance_mps": 0.15,
+                            "stability_min_in_band_fraction": 0.8,
                             "stable_duration_sec": stable_speed_sec,
                             "max_wait_sec": 30.0,
                         },

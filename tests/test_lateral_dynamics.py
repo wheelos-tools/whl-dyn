@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import time
 
 import numpy as np
 import pandas as pd
@@ -15,6 +16,7 @@ from whl_dyn.planning.vehicle_dynamics import (
     generate_lateral_frequency_plan,
 )
 from whl_dyn.processing.lateral_dynamics import (
+    analyze_phase1_suite,
     analyze_lateral_frequency_response,
     write_lateral_frequency_report,
 )
@@ -60,6 +62,24 @@ def test_speed_gate_accepts_only_configured_range():
     assert not collector._speed_in_gate({"min_mps": 0.0, "max_mps": 3.0})
 
 
+def test_chassis_feedback_satisfies_active_source_readiness():
+    collector = LateralSignalCollector(
+        None,
+        {
+            "chassis_fields": {"steering_feedback": "steering_percentage"},
+            "max_feedback_age_sec": 0.5,
+        },
+    )
+    now = time.time()
+    collector._latest.update({
+        "localization_source_time_sec": now,
+        "chassis_source_time_sec": now + 0.01,
+        "steering_feedback": 2.0,
+    })
+    assert collector.wait_for_sources(0.01, require_steering_feedback=True)
+    assert collector.snapshot()["time_aligned"]
+
+
 def test_target_speed_must_be_inside_hard_speed_range():
     try:
         generate_lateral_frequency_plan(
@@ -77,6 +97,35 @@ def test_speed_target_requires_its_own_tolerance_band():
     assert collector._speed_at_target({"target_mps": 2.0, "tolerance_mps": 0.15})
     collector._latest["chassis_speed_mps"] = 2.16
     assert not collector._speed_at_target({"target_mps": 2.0, "tolerance_mps": 0.15})
+
+
+def test_speed_stability_checks_window_before_pruning_old_samples(monkeypatch):
+    collector = LateralSignalCollector(None, {})
+    clock = {"seconds": 0.0}
+    monkeypatch.setattr(
+        "whl_dyn.collection.lateral.time.monotonic",
+        lambda: clock["seconds"],
+    )
+    monkeypatch.setattr(
+        "whl_dyn.collection.lateral.time.sleep",
+        lambda seconds: clock.__setitem__("seconds", clock["seconds"] + seconds),
+    )
+    monkeypatch.setattr(collector, "publish_control", lambda *args, **kwargs: None)
+    monkeypatch.setattr(collector, "snapshot", lambda: {"chassis_speed_mps": 2.0})
+
+    stable_speed = collector.wait_for_speed_stable(
+        {
+            "min_mps": 1.85,
+            "max_mps": 2.15,
+            "target_mps": 2.0,
+            "tolerance_mps": 0.15,
+            "stable_duration_sec": 2.0,
+        },
+        longitudinal={"mode": "speed", "speed_mps": 2.0},
+        timeout_sec=5.0,
+    )
+
+    assert stable_speed == 2.0
 
 
 def test_snapshot_reports_source_alignment_and_requires_feedback_source():
@@ -112,15 +161,34 @@ def test_localization_signal_normalization_uses_vehicle_frame_axes():
         pose=SimpleNamespace(
             linear_velocity=SimpleNamespace(x=3.0, y=4.0),
             angular_velocity_vrf=SimpleNamespace(z=0.2),
-            linear_acceleration_vrf=SimpleNamespace(x=1.5),
+            linear_acceleration_vrf=SimpleNamespace(x=-1.5),
+            heading=0.0,
             euler_angles=SimpleNamespace(x=0.1),
         ),
     )
     assert nested_value(message, "pose.angular_velocity_vrf.z") == 0.2
     values = localization_signals(message, 99.0)
+    assert values["localization_signals_valid"]
     assert values["speed_mps"] == 5.0
+    assert values["longitudinal_velocity_mps"] == 3.0
+    assert values["lateral_velocity_mps"] == 4.0
     assert values["yaw_rate_radps"] == 0.2
     assert values["lateral_accel_mps2"] == 1.5
+
+
+def test_localization_signal_normalization_rejects_missing_dynamics_fields():
+    message = SimpleNamespace(
+        measurement_time=12.0,
+        pose=SimpleNamespace(
+            linear_velocity=SimpleNamespace(x=3.0, y=4.0),
+            angular_velocity_vrf=SimpleNamespace(),
+            linear_acceleration_vrf=SimpleNamespace(x=-1.5),
+            heading=0.0,
+        ),
+    )
+    values = localization_signals(message, 99.0)
+    assert not values["localization_signals_valid"]
+    assert np.isnan(values["yaw_rate_radps"])
 
 
 def test_lateral_analysis_writes_two_bode_reports(tmp_path):
@@ -162,3 +230,31 @@ def test_lateral_analysis_rejects_unaligned_samples():
         assert "time-aligned" in str(error)
     else:
         raise AssertionError("unaligned samples were accepted")
+
+
+def test_phase1_report_requires_expected_cases_and_quality(tmp_path):
+    run = tmp_path / "run"
+    run.mkdir()
+    metadata = {
+        "case": {
+            "case_name": "step",
+            "test_type": "steering_step",
+            "duration_sec": 1.0,
+            "sampling_rate_hz": 10.0,
+        },
+    }
+    (run / "metadata.yaml").write_text(yaml.safe_dump(metadata))
+    (run / "status.json").write_text('{"completed": true}')
+    pd.DataFrame({
+        "steering_command": [0.0] * 10,
+        "steering_feedback": [0.0] * 10,
+        "yaw_rate_radps": [0.0] * 10,
+        "lateral_accel_mps2": [0.0] * 10,
+        "time_aligned": [True] * 10,
+        "localization_signals_valid": [True] * 10,
+    }).to_csv(run / "samples.csv", index=False)
+    report = analyze_phase1_suite(
+        tmp_path, expected_plan=[metadata["case"],
+                                dict(metadata["case"], case_name="missing")])
+    assert report["status"] == "FAIL"
+    assert report["results"][-1]["missing_cases"] == ["missing"]

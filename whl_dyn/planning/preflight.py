@@ -39,9 +39,13 @@ def validate_active_signal_config(config):
     """Require a normalized actual steering feedback signal for active tests."""
 
     fields = config.get("detail_fields", {}) if isinstance(config, dict) else {}
-    if "steering_feedback" not in fields:
+    chassis_fields = (
+        config.get("chassis_fields", {}) if isinstance(config, dict) else {})
+    if ("steering_feedback" not in fields and
+            "steering_feedback" not in chassis_fields):
         raise ValueError(
-            "active open-loop collection requires detail_fields.steering_feedback")
+            "active open-loop collection requires "
+            "detail_fields.steering_feedback or chassis_fields.steering_feedback")
     if config.get("detail_message") is not None and not isinstance(
             config.get("detail_message"), dict):
         raise ValueError("detail_message fallback must be a mapping")
