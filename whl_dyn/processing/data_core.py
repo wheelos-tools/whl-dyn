@@ -7,6 +7,7 @@ from scipy.signal import butter, filtfilt
 from scipy.interpolate import griddata
 from sklearn.neighbors import LocalOutlierFactor
 from .config import CalibrationConfig
+from .dynamics import is_dynamic_log
 
 class DataCore:
     """Core data processing class handling filtering, derivation, and grid building."""
@@ -24,6 +25,10 @@ class DataCore:
             try:
                 df = pd.read_csv(file_path)
                 if not df.empty:
+                    # Dynamic logs are handled by processing.dynamics and
+                    # should not contaminate the calibration response grid.
+                    if is_dynamic_log(df):
+                        continue
                     # Select appropriate feature columns based on config
                     speed_col = 'speed_mps' if self.config.speed_source == 'chassis' else 'ins_speed_mps'
 

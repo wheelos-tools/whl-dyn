@@ -1,0 +1,16 @@
+# Signal mapping for the Apollo simulation module.
+topics:
+  chassis: /apollo/canbus/chassis
+  chassis_detail: /apollo/canbus/chassis_detail
+  localization: /apollo/localization/pose
+  control: /apollo/control
+
+chassis_fields:
+  steering_feedback: steering_percentage
+
+control_steering_scale: 1.0
+steering_feedback_scale: 1.0
+control_gear_location: 1
+stop_brake: 30.0
+max_feedback_age_sec: 0.5
+max_alignment_skew_sec: 0.05

@@ -1,0 +1,144 @@
+- case_name: throttle_20_to_3mps
+  description: Accelerate with 20% throttle, target >3.0m/s, then brake to stop.
+  steps:
+  - command:
+      throttle: 20.0
+      brake: 0.0
+    trigger:
+      type: speed_greater_than
+      value: 3.0
+    timeout_sec: 30.0
+    hold_duration_ms: 500
+  - command:
+      throttle: 0.0
+      brake: 30.0
+    trigger:
+      type: speed_less_than
+      value: 0.1
+    timeout_sec: 30.0
+- case_name: throttle_40_to_3mps
+  description: Accelerate with 40% throttle, target >3.0m/s, then brake to stop.
+  steps:
+  - command:
+      throttle: 40.0
+      brake: 0.0
+    trigger:
+      type: speed_greater_than
+      value: 3.0
+    timeout_sec: 30.0
+    hold_duration_ms: 500
+  - command:
+      throttle: 0.0
+      brake: 30.0
+    trigger:
+      type: speed_less_than
+      value: 0.1
+    timeout_sec: 30.0
+- case_name: throttle_60_to_3mps
+  description: Accelerate with 60% throttle, target >3.0m/s, then brake to stop.
+  steps:
+  - command:
+      throttle: 60.0
+      brake: 0.0
+    trigger:
+      type: speed_greater_than
+      value: 3.0
+    timeout_sec: 30.0
+    hold_duration_ms: 500
+  - command:
+      throttle: 0.0
+      brake: 30.0
+    trigger:
+      type: speed_less_than
+      value: 0.1
+    timeout_sec: 30.0
+- case_name: throttle_80_to_3mps
+  description: Accelerate with 80% throttle, target >3.0m/s, then brake to stop.
+  steps:
+  - command:
+      throttle: 80.0
+      brake: 0.0
+    trigger:
+      type: speed_greater_than
+      value: 3.0
+    timeout_sec: 30.0
+    hold_duration_ms: 500
+  - command:
+      throttle: 0.0
+      brake: 30.0
+    trigger:
+      type: speed_less_than
+      value: 0.1
+    timeout_sec: 30.0
+- case_name: brake_20_from_3mps
+  description: Accelerate to >3.0m/s, then apply 20% brake.
+  steps:
+  - command:
+      throttle: 80.0
+      brake: 0.0
+    trigger:
+      type: speed_greater_than
+      value: 3.0
+    timeout_sec: 30.0
+    hold_duration_ms: 500
+  - command:
+      throttle: 0.0
+      brake: 20.0
+    trigger:
+      type: speed_less_than
+      value: 0.1
+    timeout_sec: 30.0
+- case_name: brake_40_from_3mps
+  description: Accelerate to >3.0m/s, then apply 40% brake.
+  steps:
+  - command:
+      throttle: 80.0
+      brake: 0.0
+    trigger:
+      type: speed_greater_than
+      value: 3.0
+    timeout_sec: 30.0
+    hold_duration_ms: 500
+  - command:
+      throttle: 0.0
+      brake: 40.0
+    trigger:
+      type: speed_less_than
+      value: 0.1
+    timeout_sec: 30.0
+- case_name: brake_60_from_3mps
+  description: Accelerate to >3.0m/s, then apply 60% brake.
+  steps:
+  - command:
+      throttle: 80.0
+      brake: 0.0
+    trigger:
+      type: speed_greater_than
+      value: 3.0
+    timeout_sec: 30.0
+    hold_duration_ms: 500
+  - command:
+      throttle: 0.0
+      brake: 60.0
+    trigger:
+      type: speed_less_than
+      value: 0.1
+    timeout_sec: 30.0
+- case_name: brake_80_from_3mps
+  description: Accelerate to >3.0m/s, then apply 80% brake.
+  steps:
+  - command:
+      throttle: 80.0
+      brake: 0.0
+    trigger:
+      type: speed_greater_than
+      value: 3.0
+    timeout_sec: 30.0
+    hold_duration_ms: 500
+  - command:
+      throttle: 0.0
+      brake: 80.0
+    trigger:
+      type: speed_less_than
+      value: 0.1
+    timeout_sec: 30.0
