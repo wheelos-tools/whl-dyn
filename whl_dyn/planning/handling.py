@@ -16,7 +16,13 @@ class OpenLoopPlanConfig:
     step_hold_sec: float = 8.0
     ramp_rate: float = 1.0
     max_steering: float = 40.0
-    max_steering_rate: float = 50.0
+    # The live collector compares command deltas to a fixed nominal sample
+    # interval rather than actual wall-clock spacing, so this default keeps
+    # headroom above the chirp/PRBS peak rate requirement (~31 units/s at
+    # the default amplitude and frequency range) to absorb real scheduling
+    # jitter on a shared test host without loosening any vehicle actuator
+    # limit.
+    max_steering_rate: float = 100.0
 
 
 def generate_phase1_plan(output=None, **kwargs):

@@ -877,13 +877,15 @@ def load_and_process(config: CalibrationConfig, directory: str):
     core = DataCore(config)
     core.load_data(directory)
     if not core.raw_dfs:
-        return None, None, None, None, None, None
+        return None, None, None, None, None, None, None
     core.process_signals()
     speed_grid, command_grid, grid_z = core.build_calibration_table()
     metrics = MetricsEvaluator.evaluate(
         speed_grid, command_grid, grid_z, core.processed_df
     )
-    return core.unified_df, core.processed_df, speed_grid, command_grid, grid_z, metrics
+    return (
+        core.unified_df, core.processed_df, speed_grid, command_grid, grid_z,
+        metrics, core.validate_sampling_rate())
 
 
 init_state()
@@ -1587,6 +1589,18 @@ if category == "🚗 油门/刹车":
 
             p3, p4 = st.columns(2)
             with p3:
+                config.sampling_rate = st.number_input(
+                    "采样频率 (Hz)", 1.0, 1000.0, 50.0, 1.0,
+                    help="日志期望采样频率；处理前会与每个 CSV 的时间戳双向校验",
+                )
+            with p4:
+                config.sampling_rate_tolerance_pct = st.number_input(
+                    "频率容差 (%)", 0.1, 50.0, 5.0, 0.1,
+                    help="配置频率与 CSV 实测频率的允许相对误差",
+                )
+
+            p3, p4 = st.columns(2)
+            with p3:
                 config.throttle_latency_ms = st.number_input(
                     "Throttle ms", 0, 500, 60, help="油门响应延迟补偿(毫秒)"
                 )
@@ -1672,13 +1686,45 @@ if category == "🚗 油门/刹车":
                     )
 
         # === 加载数据 ===
-        raw_df, clean_df, speed_grid, cmd_grid, accel_grid, metrics = load_and_process(
+        raw_df, clean_df, speed_grid, cmd_grid, accel_grid, metrics, rate_check = load_and_process(
             config, str(data_dir)
         )
 
+        if raw_df is not None:
+            if not rate_check["passed"]:
+                failed_rates = [
+                    item for item in rate_check["files"] if not item["passed"]
+                ]
+                st.error(
+                    "采样频率校验失败：配置 "
+                    f"{rate_check['expected_hz']:.2f} Hz，但 "
+                    + ", ".join(
+                        f"{item['source_file']} 实测 {item['measured_hz']:.2f} Hz"
+                        for item in failed_rates
+                    )
+                    + "。请修正界面频率后再分析。"
+                )
+            else:
+                measured_rates = {
+                    round(item["measured_hz"], 2)
+                    for item in rate_check["files"]
+                }
+                st.success(
+                    "采样频率双向校验通过：配置 "
+                    f"{rate_check['expected_hz']:.2f} Hz，实测 "
+                    + ", ".join(
+                        f"{rate:.2f} Hz" for rate in sorted(measured_rates)
+                    )
+                )
+
         # === 中列：可视化 ===
         with viz_col:
-            if raw_df is not None and speed_grid is not None and len(speed_grid) > 0:
+            if (
+                raw_df is not None
+                and rate_check["passed"]
+                and speed_grid is not None
+                and len(speed_grid) > 0
+            ):
                 # 可视化数据切换
                 viz_mode = st.radio(
                     "显示数据",

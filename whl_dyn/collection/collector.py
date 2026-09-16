@@ -21,15 +21,23 @@ import yaml
 try:
     from cyber.python.cyber_py3 import cyber
     from cyber.python.cyber_py3 import cyber_time
+except ModuleNotFoundError:
+    cyber = None
+    cyber_time = None
+
+try:
     from modules.common_msgs.chassis_msgs import chassis_pb2
     from modules.common_msgs.control_msgs import control_cmd_pb2
     from modules.common_msgs.localization_msgs import localization_pb2
 except ModuleNotFoundError:
-    cyber = None
-    cyber_time = None
-    chassis_pb2 = None
-    control_cmd_pb2 = None
-    localization_pb2 = None
+    try:
+        from wheelos_msgs.chassis_msgs import chassis_pb2
+        from wheelos_msgs.control_msgs import control_cmd_pb2
+        from wheelos_msgs.localization_msgs import localization_pb2
+    except ModuleNotFoundError:
+        chassis_pb2 = None
+        control_cmd_pb2 = None
+        localization_pb2 = None
 
 # --- Use dataclasses for clear state management ---
 SUPPORTED_DYNAMIC_PROFILES = (
