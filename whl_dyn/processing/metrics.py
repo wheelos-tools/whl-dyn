@@ -20,13 +20,13 @@ class MetricsEvaluator:
         for j in range(len(speed_grid)):
             # Throttle deadzone: find first positive command with accel > threshold
             for i, cmd in enumerate(command_grid):
-                if cmd > 0 and grid_z[i, j] > accel_threshold:
+                if cmd > 0 and np.isfinite(grid_z[i, j]) and grid_z[i, j] > accel_threshold:
                     t_deadzone_values.append(cmd)
                     break
 
             # Brake deadzone: find first negative command with accel < -threshold
             for i, cmd in reversed(list(enumerate(command_grid))):
-                if cmd < 0 and grid_z[i, j] < -accel_threshold:
+                if cmd < 0 and np.isfinite(grid_z[i, j]) and grid_z[i, j] < -accel_threshold:
                     b_deadzone_values.append(abs(cmd))
                     break
 
@@ -42,7 +42,8 @@ class MetricsEvaluator:
         r2_t = []
         r2_t_low_speed = []  # Low speed (0.5-3 m/s) - critical for control, exclude stationary
         for j in range(len(speed_grid)):
-            mask = command_grid > metrics['throttle_deadzone_pct']
+            mask = ((command_grid > metrics['throttle_deadzone_pct']) &
+                    np.isfinite(grid_z[:, j]))
             if np.sum(mask) > 2:
                 _, _, r, _, _ = linregress(command_grid[mask], grid_z[mask, j])
                 r2_t.append(r**2)
@@ -54,7 +55,8 @@ class MetricsEvaluator:
         r2_b = []
         r2_b_low_speed = []
         for j in range(len(speed_grid)):
-            mask = command_grid < -metrics['brake_deadzone_pct']
+            mask = ((command_grid < -metrics['brake_deadzone_pct']) &
+                    np.isfinite(grid_z[:, j]))
             if np.sum(mask) > 2:
                 _, _, r, _, _ = linregress(command_grid[mask], grid_z[mask, j])
                 r2_b.append(r**2)
@@ -73,7 +75,8 @@ class MetricsEvaluator:
             throttle_grid = grid_z[throttle_mask, :]
             dx2_t = np.gradient(np.gradient(throttle_grid, axis=0), axis=0)
             dy2_t = np.gradient(np.gradient(throttle_grid, axis=1), axis=1)
-            metrics['throttle_smoothness_laplacian_mean'] = float(np.mean(np.abs(dx2_t) + np.abs(dy2_t)))
+            metrics['throttle_smoothness_laplacian_mean'] = float(
+                np.nanmean(np.abs(dx2_t) + np.abs(dy2_t)))
             metrics['throttle_smoothness_score_100'] = float(max(0.0, 100.0 - metrics['throttle_smoothness_laplacian_mean'] * 500))
         else:
             metrics['throttle_smoothness_score_100'] = 0.0
@@ -83,7 +86,8 @@ class MetricsEvaluator:
             brake_grid = grid_z[brake_mask, :]
             dx2_b = np.gradient(np.gradient(brake_grid, axis=0), axis=0)
             dy2_b = np.gradient(np.gradient(brake_grid, axis=1), axis=1)
-            metrics['brake_smoothness_laplacian_mean'] = float(np.mean(np.abs(dx2_b) + np.abs(dy2_b)))
+            metrics['brake_smoothness_laplacian_mean'] = float(
+                np.nanmean(np.abs(dx2_b) + np.abs(dy2_b)))
             metrics['brake_smoothness_score_100'] = float(max(0.0, 100.0 - metrics['brake_smoothness_laplacian_mean'] * 500))
         else:
             metrics['brake_smoothness_score_100'] = 0.0
@@ -93,7 +97,8 @@ class MetricsEvaluator:
         if grid_z.shape[0] > 2 and grid_z.shape[1] > 2:
             dx2 = np.gradient(np.gradient(grid_z, axis=0), axis=0)
             dy2 = np.gradient(np.gradient(grid_z, axis=1), axis=1)
-            metrics['smoothness_laplacian_mean'] = float(np.mean(np.abs(dx2) + np.abs(dy2)))
+            metrics['smoothness_laplacian_mean'] = float(
+                np.nanmean(np.abs(dx2) + np.abs(dy2)))
             metrics['smoothness_score_100'] = float(max(0.0, 100.0 - metrics['smoothness_laplacian_mean'] * 500))
         else:
             metrics['smoothness_score_100'] = 0.0
@@ -106,15 +111,17 @@ class MetricsEvaluator:
         brake_mask = command_grid < -metrics['brake_deadzone_pct']
 
         if np.any(throttle_mask):
-            metrics['max_throttle_accel'] = float(np.max(grid_z[throttle_mask, :]))
-            metrics['min_throttle_accel'] = float(np.min(grid_z[throttle_mask, :]))
+            throttle_values = grid_z[throttle_mask, :]
+            metrics['max_throttle_accel'] = float(np.nanmax(throttle_values))
+            metrics['min_throttle_accel'] = float(np.nanmin(throttle_values))
         else:
             metrics['max_throttle_accel'] = 0.0
             metrics['min_throttle_accel'] = 0.0
 
         if np.any(brake_mask):
-            metrics['max_brake_decel'] = float(np.min(grid_z[brake_mask, :]))  # Most negative
-            metrics['min_brake_decel'] = float(np.max(grid_z[brake_mask, :]))  # Least negative
+            brake_values = grid_z[brake_mask, :]
+            metrics['max_brake_decel'] = float(np.nanmin(brake_values))  # Most negative
+            metrics['min_brake_decel'] = float(np.nanmax(brake_values))  # Least negative
         else:
             metrics['max_brake_decel'] = 0.0
             metrics['min_brake_decel'] = 0.0
@@ -129,12 +136,14 @@ class MetricsEvaluator:
             # Check throttle monotonicity (command increases -> accel increases)
             if np.any(throttle_mask):
                 throttle_accel = grid_z[throttle_mask, j]
+                throttle_accel = throttle_accel[np.isfinite(throttle_accel)]
                 if not np.all(np.diff(throttle_accel) >= -0.01):  # Allow small tolerance
                     throttle_violations += 1
 
             # Check brake monotonicity (command increases -> accel increases, i.e., becomes less negative)
             if np.any(brake_mask):
                 brake_accel = grid_z[brake_mask, j]
+                brake_accel = brake_accel[np.isfinite(brake_accel)]
                 # For brake: as command goes from -100 to 0, accel goes from most negative to 0
                 # So diff should be positive (accel increases) or close to zero
                 if not np.all(np.diff(brake_accel) >= -0.01):  # Allow small tolerance
