@@ -7,6 +7,14 @@ def generate_calibration_plan(args):
     Generates a comprehensive longitudinal calibration plan in YAML format.
     """
     plan = []
+    # 保持旧调用兼容，不传新参数时仍使用踏板接口。
+    interface = getattr(args, "brake_interface", "pedal")
+    fullscale = float(getattr(args, "brake_fullscale_decel", 3.0))
+    limit = float(getattr(args, "max_decel", 5.0))
+    if interface not in ("pedal", "deceleration"):
+        raise ValueError("制动接口必须为pedal或deceleration")
+    if not np.isfinite(fullscale) or not np.isfinite(limit) or min(fullscale, limit) <= 0:
+        raise ValueError("减速度配置必须是有限正数")
 
     # 1. Generate Throttle Sweep Cases
     throttle_steps = np.linspace(args.throttle_min, args.throttle_max, args.throttle_num_steps, dtype=int)
@@ -63,6 +71,16 @@ def generate_calibration_plan(args):
         }
         plan.append(case)
 
+    # 将配置保存在每个用例中，页面拆分单用例后也能保留。
+    for case in plan:
+        case.update(brake_interface=interface,
+                    brake_fullscale_decel=fullscale, max_decel=limit)
+        if interface == "deceleration":
+            for step in case["steps"]:
+                decel = float(step["command"].get("brake", 0.0)) / 100.0 * fullscale
+                if decel > limit or 0 < decel <= 0.30:
+                    raise ValueError(f"{case['case_name']}: 减速度请求{decel}不满足现有接口约束")
+
     # 3. Save the plan to a YAML file
     with open(args.output, 'w') as f:
         yaml.dump(plan, f, sort_keys=False, default_flow_style=False, indent=2)
@@ -95,5 +113,8 @@ if __name__ == "__main__":
     parser.add_argument('--accel-timeout', type=float, default=30.0, help="Timeout in seconds for acceleration steps.")
     parser.add_argument('--decel-timeout', type=float, default=30.0, help="Timeout in seconds for deceleration steps.")
 
+    parser.add_argument('--brake-interface', choices=['pedal', 'deceleration'], default='pedal')
+    parser.add_argument('--brake-fullscale-decel', type=float, default=3.0)
+    parser.add_argument('--max-decel', type=float, default=5.0)
     args = parser.parse_args()
     generate_calibration_plan(args)

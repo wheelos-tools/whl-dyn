@@ -1041,6 +1041,19 @@ with plan_tab:
     left_col, right_col = st.columns([2, 1])
 
     with left_col:
+        # brake是界面名称；pedal保持现有采集器接口兼容。
+        brake_mode = st.radio("制动接口", ["pedal", "deceleration"],
+                              horizontal=True, key="plan_brake_mode")
+        brake_interface = "pedal" if brake_mode == "pedal" else "deceleration"
+        dc1, dc2 = st.columns(2)
+        with dc1:
+            brake_fullscale_decel = st.number_input(
+                "100%制动对应减速度 (m/s²)", min_value=0.01,
+                value=3.0, step=0.1, disabled=brake_interface == "pedal")
+        with dc2:
+            max_decel = st.number_input(
+                "最大允许减速度 (m/s²)", min_value=0.01,
+                value=5.0, step=0.1, disabled=brake_interface == "pedal")
         # 第一行：油门参数（滑块 + 步数）
         t_col1, t_col2 = st.columns([4, 1])
         with t_col1:
@@ -1092,6 +1105,9 @@ with plan_tab:
                 brake_max=int(b_max),
                 brake_num_steps=int(b_steps),
                 speed_targets=targets,
+                brake_interface=brake_interface,
+                brake_fullscale_decel=float(brake_fullscale_decel),
+                max_decel=float(max_decel),
                 default_throttle=float(default_throttle),
                 default_brake=float(default_brake),
                 hold_duration_ms=int(hold_duration),
@@ -1106,15 +1122,88 @@ with plan_tab:
     plan_df = build_plan_df(plan)
 
     view_mode = st.radio(
-        "视图模式", ["表格", "源码"], horizontal=True, label_visibility="collapsed"
+        "视图模式", ["表格", "源码", "编辑计划"], horizontal=True, label_visibility="collapsed"
     )
     if view_mode == "表格":
         st.dataframe(plan_df, use_container_width=True)
-    else:
+    elif view_mode == "源码":
         if plan_path.exists():
             st.code(plan_path.read_text(encoding="utf-8"), language="yaml")
         else:
             st.warning("计划文件未找到。")
+    else:
+        # 内容指纹使路径切换、重新生成计划后自动加载最新内容。
+        # 普通页面重跑时不覆盖尚未保存的编辑内容。
+        import hashlib
+        import os
+        import tempfile
+
+        try:
+            disk_text = (plan_path.read_text(encoding="utf-8")
+                         if plan_path.exists() else "")
+            editor_key = "plan_editor_" + hashlib.sha256(
+                (str(plan_path) + "\0" + disk_text).encode("utf-8")
+            ).hexdigest()
+            if st.session_state.pop("plan_editor_saved", False):
+                st.success("计划已保存，表格和源码已更新。")
+            st.caption("编辑完整YAML计划；点击保存后生效。重新生成计划会覆盖文件。")
+            with st.form("plan_edit_form"):
+                edited_text = st.text_area(
+                    "计划内容（YAML）", value=disk_text,
+                    height=520, key=editor_key,
+                )
+                save_plan = st.form_submit_button("保存计划")
+            if save_plan:
+                temp_path = None
+                try:
+                    edited_plan = yaml.safe_load(edited_text)
+                    if not isinstance(edited_plan, list) or not edited_plan:
+                        raise ValueError("计划必须是非空用例列表")
+                    names = set()
+                    for index, case in enumerate(edited_plan, 1):
+                        if not isinstance(case, dict):
+                            raise ValueError(f"第{index}个用例必须是字典")
+                        name = case.get("case_name")
+                        if not isinstance(name, str) or not name.strip():
+                            raise ValueError(f"第{index}个用例缺少有效case_name")
+                        if name in names:
+                            raise ValueError(f"用例名称重复：{name}")
+                        names.add(name)
+                        steps = case.get("steps")
+                        if not isinstance(steps, list) or not steps:
+                            raise ValueError(f"{name}必须包含非空steps列表")
+                        for step_index, step in enumerate(steps, 1):
+                            if (not isinstance(step, dict)
+                                    or not isinstance(step.get("command"), dict)
+                                    or not isinstance(step.get("trigger"), dict)):
+                                raise ValueError(
+                                    f"{name}第{step_index}步必须包含command和trigger字典"
+                                )
+                    # 防止另一会话/进程更新文件后被旧编辑内容覆盖。
+                    latest_text = (plan_path.read_text(encoding="utf-8")
+                                   if plan_path.exists() else "")
+                    if latest_text != disk_text:
+                        raise ValueError("计划文件已变化，请刷新后重新编辑")
+                    plan_path.parent.mkdir(parents=True, exist_ok=True)
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", encoding="utf-8", dir=str(plan_path.parent),
+                        prefix=".plan_edit_", suffix=".tmp", delete=False,
+                    ) as output:
+                        temp_path = Path(output.name)
+                        output.write(edited_text)
+                        output.flush()
+                        os.fsync(output.fileno())
+                    os.replace(str(temp_path), str(plan_path))
+                    st.session_state["plan_editor_saved"] = True
+                except (yaml.YAMLError, ValueError, TypeError, OSError) as exc:
+                    st.error(f"未保存计划：{exc}")
+                else:
+                    st.rerun()
+                finally:
+                    if temp_path is not None and temp_path.exists():
+                        temp_path.unlink()
+        except (OSError, UnicodeError) as exc:
+            st.error(f"无法读取计划文件：{exc}")
 
 with collect_tab:
     running = poll_runtime()
@@ -1751,15 +1840,18 @@ with analysis_tab:
             )
             st.plotly_chart(fig, use_container_width=True)
 
+            export_mode = st.selectbox("导出范围", ["油门+刹车", "仅油门", "仅刹车"], key="analysis_export_mode")
             # 底部导出按钮
             exp1, exp2 = st.columns(2)
             with exp1:
                 if st.button("📥 Export"):
                     export_dir.mkdir(parents=True, exist_ok=True)
+                    mask = (cmd_grid >= 0 if export_mode == "仅油门" else
+                            cmd_grid <= 0 if export_mode == "仅刹车" else cmd_grid == cmd_grid)
                     Exporter.save_unified_csv(
-                        speed_grid, cmd_grid, accel_grid, export_dir
+                        speed_grid, cmd_grid[mask], accel_grid[mask, :], export_dir
                     )
-                    Exporter.save_protobuf(speed_grid, cmd_grid, accel_grid, export_dir)
+                    Exporter.save_protobuf(speed_grid, cmd_grid[mask], accel_grid[mask, :], export_dir)
                     Exporter.save_metrics(metrics, export_dir)
                     st.success(f"Exported to {export_dir}")
             with exp2:
