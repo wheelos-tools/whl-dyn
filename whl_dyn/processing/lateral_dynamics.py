@@ -40,6 +40,67 @@ def _bode_frame(result):
     })
 
 
+def _resample_source_signals(frame, output_column, sampling_rate_hz):
+    source_columns = ("steering_feedback_source_time_sec",
+                      "localization_source_time_sec")
+    values = frame.loc[:, list(source_columns) + [
+        "steering_feedback", output_column]].apply(pd.to_numeric, errors="coerce")
+    if not np.isfinite(values.to_numpy(dtype=float)).all():
+        raise ValueError("source timestamps and frequency signals must be finite")
+    origin = float(values[source_columns[0]].iloc[0])
+    series = []
+    for time_column, value_column in zip(
+            source_columns, ("steering_feedback", output_column)):
+        times = values[time_column].to_numpy(dtype=float) - origin
+        signal_values = values[value_column].to_numpy(dtype=float)
+        differences = np.diff(times)
+        if np.any(differences < 0.0):
+            raise ValueError("source timestamps must not move backwards")
+        repeated = differences == 0.0
+        if np.any(repeated & (np.diff(signal_values) != 0.0)):
+            raise ValueError("a source timestamp has conflicting signal values")
+        keep = np.r_[True, ~repeated]
+        times, signal_values = times[keep], signal_values[keep]
+        if len(times) < 4:
+            raise ValueError("insufficient independent source samples")
+        period = float(np.median(np.diff(times)))
+        if period <= 0.0 or np.max(np.diff(times)) > 1.5 * period + 1e-6:
+            raise ValueError("source samples have a gap exceeding 1.5 periods")
+        series.append((times, signal_values, period))
+
+    sample_column = (
+        "sample_elapsed_sec" if "sample_elapsed_sec" in frame else "elapsed_sec")
+    sample_times = pd.to_numeric(frame[sample_column], errors="coerce").to_numpy()
+    if not np.isfinite(sample_times).all() or np.any(np.diff(sample_times) <= 0.0):
+        raise ValueError("snapshot timestamps must be finite and increasing")
+    sample_period = float(np.median(np.diff(sample_times)))
+    if sampling_rate_hz is not None:
+        requested_rate = float(sampling_rate_hz)
+        if not np.isfinite(requested_rate) or requested_rate <= 0.0:
+            raise ValueError("sampling rate must be finite and positive")
+        if 1.0 / requested_rate > 1.1 * sample_period:
+            raise ValueError("downsampling requires an anti-alias filter")
+    else:
+        requested_rate = 1.0 / sample_period
+    period = max(1.0 / requested_rate, sample_period,
+                 series[0][2], series[1][2])
+    start = max(series[0][0][0], series[1][0][0])
+    end = min(series[0][0][-1], series[1][0][-1])
+    count = int(np.floor((end - start) / period)) + 1
+    if count < 8:
+        raise ValueError("insufficient overlapping source samples")
+    grid = start + np.arange(count) * period
+    return pd.DataFrame({
+        "time": grid - start,
+        "steering_feedback": np.interp(grid, series[0][0], series[0][1]),
+        output_column: np.interp(grid, series[1][0], series[1][1]),
+    }), {
+        "method": "linear_interpolation_of_source_timestamps",
+        "source_sample_counts": [len(series[0][0]), len(series[1][0])],
+        "sampling_rate_hz": 1.0 / period,
+    }
+
+
 def analyze_lateral_frequency_response(frame, steering_column=None,
                                        time_column="elapsed_sec",
                                        sampling_rate_hz=None):
@@ -74,15 +135,49 @@ def analyze_lateral_frequency_response(frame, steering_column=None,
         "lateral_acceleration": "lateral_accel_mps2",
     }
     reports = {}
+    source_columns = ("steering_feedback_source_time_sec",
+                      "localization_source_time_sec")
+    has_source_times = all(column in working for column in source_columns)
+    if has_source_times and (
+            input_name != "steering_feedback" or "steering_feedback" not in frame):
+        raise ValueError("source timestamps do not identify the selected steering signal")
+    if source_columns[0] in working and not has_source_times:
+        raise ValueError("both steering and localization source timestamps are required")
+    if has_source_times:
+        for column in ("steering_feedback_source_time_is_receive",
+                       "localization_source_time_is_receive"):
+            if column in working and working[column].astype(str).str.lower().isin(
+                    ("true", "1", "yes")).any():
+                raise ValueError("frequency analysis requires source timestamps, not receive-time fallbacks")
+    if has_source_times and "collector_time_sec" in working:
+        collected = pd.to_numeric(working["collector_time_sec"], errors="coerce")
+        for column in source_columns:
+            age = collected - pd.to_numeric(working[column], errors="coerce")
+            if not np.isfinite(age.to_numpy()).all() or (
+                    (age < 0.0) | (age > 0.5)).any():
+                raise ValueError("source freshness gate failed: {0}".format(column))
     for name, output_column in outputs.items():
         if output_column not in working:
             raise ValueError("samples require {0}".format(output_column))
+        if has_source_times:
+            analysis_frame, timebase = _resample_source_signals(
+                working, output_column, sampling_rate_hz)
+            analysis_rate = timebase["sampling_rate_hz"]
+        else:
+            observed_column = (
+                "sample_elapsed_sec" if "sample_elapsed_sec" in working else
+                "collector_monotonic_sec" if "collector_monotonic_sec" in working
+                else time_column)
+            analysis_frame = working.rename(columns={observed_column: "time"})
+            analysis_rate = sampling_rate_hz
+            timebase = {"method": "recorded_" + observed_column}
         result = analyze_frequency_response(
-            working.rename(columns={time_column: "time"}),
+            analysis_frame,
             input_col="steering_feedback",
             output_col=output_column,
-            sampling_rate_hz=sampling_rate_hz,
+            sampling_rate_hz=analysis_rate,
         )
+        result["timebase"] = timebase
         reports[name] = result
     return {
         "input_signal": input_name,
@@ -215,13 +310,22 @@ def analyze_phase1_suite(run_root, expected_plan=None):
                 if test_type == "lateral_frequency_response":
                     metrics = analyze_lateral_frequency_response(frame)
                     for response in metrics["responses"].values():
+                        if response["sampling_rate_hz"] < 0.95 * float(
+                                case["sampling_rate_hz"]):
+                            raise ValueError(
+                                "effective frequency sample rate is below the plan")
                         coherence = np.asarray(response["coherence"], dtype=float)
                         if (not coherence.size or
                                 not np.isfinite(coherence).all() or
                                 float(np.min(coherence)) < 0.5):
                             raise ValueError("frequency coherence gate failed")
                 elif test_type == "steering_step":
-                    step_frame = numeric.assign(time=elapsed.to_numpy())
+                    observed = pd.to_numeric(
+                        frame.get("sample_elapsed_sec", elapsed), errors="coerce")
+                    if (not np.isfinite(observed.to_numpy()).all() or
+                            (np.diff(observed.to_numpy()) <= 0.0).any()):
+                        raise ValueError("snapshot time is invalid")
+                    step_frame = numeric.assign(time=observed.to_numpy())
                     metrics = {
                         column: analyze_step_response(
                             step_frame, input_col="steering_command", output_col=column)
@@ -229,11 +333,16 @@ def analyze_phase1_suite(run_root, expected_plan=None):
                     }
                 elif test_type == "steering_deadzone_rate":
                     feedback = numeric["steering_feedback"].to_numpy()
+                    observed = pd.to_numeric(
+                        frame.get("sample_elapsed_sec", elapsed), errors="coerce")
+                    if (not np.isfinite(observed.to_numpy()).all() or
+                            (np.diff(observed.to_numpy()) <= 0.0).any()):
+                        raise ValueError("snapshot time is invalid")
                     metrics = {
                         "sample_count": len(frame),
                         "observed_feedback_range": float(np.ptp(feedback)),
                         "peak_observed_feedback_rate": float(np.max(np.abs(
-                            np.diff(feedback) / np.diff(elapsed.to_numpy())))),
+                            np.diff(feedback) / np.diff(observed.to_numpy())))),
                         "deadzone": None,
                         "deadzone_unavailable_reason":
                             "requires a configured feedback noise threshold and unit conversion",
@@ -305,6 +414,7 @@ def write_lateral_frequency_report(run_directory, steering_column=None,
         summary["responses"][name] = {
             key: result[key] for key in (
                 "input_signal", "output_signal", "sampling_rate_hz",
+                "welch_segment_samples", "welch_segment_count", "timebase",
                 "bandwidth_hz", "resonance_peak_db", "resonance_peak_hz",
                 "estimated_delay_sec",
             )

@@ -46,8 +46,12 @@ claims of implemented functionality.
 - Phase 1 `PASS` means execution and observable response checks passed.
   `vehicle_acceptance: NOT_EVALUATED` is explicit; no unconfigured vehicle
   performance requirement is silently considered satisfied.
-- Frequency analysis rejects nonuniform timestamps/rate mismatch. Phase delay is
-  not transport delay; unavailable bandwidth/phase metrics display as `N/A`.
+- Longitudinal frequency analysis requires uniform timestamps. Lateral analysis
+  can interpolate independently timestamped sources to a common grid, but
+  rejects backward timestamps and gaps over 1.5 source periods. Legacy logs
+  without steering source times must have uniform recorded snapshot times.
+  At least two Welch segments are required. Phase delay is not transport delay;
+  unavailable bandwidth/phase metrics display as `N/A`.
 
 ## Regression sources
 

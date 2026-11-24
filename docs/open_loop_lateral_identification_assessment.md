@@ -24,8 +24,8 @@ listed below so that unavailable signals are not mistaken for passing results.
 - Chirp, Sweep, and PRBS steering excitation.
 - Speed stabilization before active excitation.
 - Separate steering command and actual steering feedback fields.
-- The default Phase 1 step/ramp plans use 50 Hz, aligned with the simulator's
-  20 ms control interval; frequency-response cases specify their own rates.
+- The default Phase 1 step/ramp plans use a 50 Hz collection loop;
+  frequency-response cases specify their own rates.
 - `steering_feedback -> yaw_rate_radps` and
   `steering_feedback -> lateral_accel_mps2` Bode reports.
 - Gain, phase, coherence, approximate -3 dB bandwidth, resonance peak, and
@@ -42,9 +42,10 @@ listed below so that unavailable signals are not mistaken for passing results.
 
 Phase 1 `PASS` denotes execution/observable-response validation only;
 `vehicle_acceptance` remains `NOT_EVALUATED`. Frequency bandwidth requires a
-coherent low-frequency plateau and cutoff crossing. Nonuniform/gapped time
-series require explicit resampling before frequency analysis, not an assumed
-nominal sample rate. A single sine cannot establish broadband bandwidth.
+coherent low-frequency plateau and cutoff crossing. Source-timestamped data
+can be resampled to a common grid within bounded gap and freshness checks;
+legacy data must satisfy the uniform-time check. A single sine cannot establish
+broadband bandwidth.
 
 ### Not yet complete
 

@@ -77,11 +77,96 @@ def test_chassis_feedback_satisfies_active_source_readiness():
     now = time.time()
     collector._latest.update({
         "localization_source_time_sec": now,
-        "chassis_source_time_sec": now + 0.01,
+        "chassis_source_time_sec": now,
         "steering_feedback": 2.0,
     })
     assert collector.wait_for_sources(0.01, require_steering_feedback=True)
     assert collector.snapshot()["time_aligned"]
+
+
+def test_future_source_is_not_ready_for_active_collection():
+    collector = LateralSignalCollector(
+        None, {"chassis_fields": {"steering_feedback": "steering_percentage"}})
+    now = time.time()
+    collector._latest.update({
+        "localization_source_time_sec": now,
+        "chassis_source_time_sec": now + 1.0,
+        "steering_feedback": 2.0,
+    })
+    assert not collector.wait_for_sources(0.01, require_steering_feedback=True)
+
+
+def test_steering_preparation_uses_actual_interval_and_checks_final_target(monkeypatch):
+    collector = LateralSignalCollector(None, {})
+    clock = {"seconds": 0.0}
+    commands = []
+    monkeypatch.setattr(
+        "whl_dyn.collection.lateral.time.monotonic", lambda: clock["seconds"])
+    monkeypatch.setattr(
+        "whl_dyn.collection.lateral.time.sleep",
+        lambda seconds: clock.__setitem__("seconds", clock["seconds"] + seconds + 0.001))
+    monkeypatch.setattr(
+        collector, "publish_control",
+        lambda command, *_args, **_kwargs: (
+            commands.append((clock["seconds"], command)),
+            clock.__setitem__("seconds", clock["seconds"] + 0.003)))
+    collector.prepare_steering_before_speed(
+        {"target": 10.0, "ramp_end_sec": 2.0}, 100.0, 10.0, 5.0)
+    assert commands[-1][1] == 10.0
+    for (t1, c1), (t2, c2) in zip(commands, commands[1:]):
+        assert abs(c2 - c1) / (t2 - t1) <= 5.0 + 1e-9
+    with pytest.raises(RuntimeError, match="configured rate"):
+        collector.prepare_steering_before_speed(
+            {"target": 10.0, "ramp_end_sec": 1.0}, 100.0, 10.0, 5.0)
+
+
+def test_snapshot_time_is_taken_while_holding_the_data_lock(monkeypatch):
+    class Lock:
+        held = False
+
+        def __enter__(self):
+            self.held = True
+
+        def __exit__(self, *_args):
+            self.held = False
+
+    collector = LateralSignalCollector(None, {})
+    collector._lock = Lock()
+    collector._latest["chassis_source_time_sec"] = 10.0
+
+    def clock():
+        assert collector._lock.held
+        return 10.1
+
+    monkeypatch.setattr("whl_dyn.collection.lateral.time.time", clock)
+    monkeypatch.setattr("whl_dyn.collection.lateral.time.monotonic", clock)
+    assert collector.snapshot()["chassis_age_sec"] == pytest.approx(0.1)
+
+
+def test_callbacks_retain_per_source_receive_times(monkeypatch):
+    wall = iter([10.0, 11.0, 12.0])
+    monotonic = iter([20.0, 21.0, 22.0])
+    monkeypatch.setattr("whl_dyn.collection.lateral.time.time", lambda: next(wall))
+    monkeypatch.setattr("whl_dyn.collection.lateral.time.monotonic", lambda: next(monotonic))
+    collector = LateralSignalCollector(None, {
+        "chassis_fields": {"steering_feedback": "steering_percentage"}})
+    collector._on_chassis(SimpleNamespace(
+        header=SimpleNamespace(timestamp_sec=9.9),
+        speed_mps=1.0, driving_mode=1, steering_percentage=2.0))
+    collector._on_localization(SimpleNamespace(
+        measurement_time=10.9,
+        pose=SimpleNamespace(
+            linear_velocity=SimpleNamespace(x=1.0, y=0.0),
+            angular_velocity_vrf=SimpleNamespace(z=0.1),
+            linear_acceleration_vrf=SimpleNamespace(x=0.2),
+            heading=0.0)))
+    sample = collector.snapshot()
+    assert sample["chassis_received_time_sec"] == 10.0
+    assert sample["chassis_received_monotonic_sec"] == 20.0
+    assert sample["localization_received_time_sec"] == 11.0
+    assert sample["localization_received_monotonic_sec"] == 21.0
+    assert sample["steering_feedback_source_time_sec"] == 9.9
+    assert not sample["steering_feedback_source_time_is_receive"]
 
 
 def test_target_speed_must_be_inside_hard_speed_range():
@@ -250,6 +335,76 @@ def test_lateral_analysis_writes_two_bode_reports(tmp_path):
     assert "bandwidth_hz" in metrics["responses"]["yaw_rate"]
 
 
+def test_lateral_frequency_uses_independent_source_times_and_bounds_gaps():
+    rng = np.random.RandomState(3)
+    t = np.arange(2000) * 0.01
+    steering_time = t + rng.uniform(-0.0007, 0.0007, len(t))
+    motion_time = t + rng.uniform(-0.0007, 0.0007, len(t)) + 0.002
+    frame = pd.DataFrame({
+        "elapsed_sec": t,
+        "sample_elapsed_sec": t + rng.uniform(-0.001, 0.001, len(t)),
+        "steering_feedback_source_time_sec": steering_time + 1000.0,
+        "localization_source_time_sec": motion_time + 1000.0,
+        "steering_feedback": np.sin(2 * np.pi * steering_time),
+        "yaw_rate_radps": 0.5 * np.sin(2 * np.pi * motion_time - 0.2),
+        "lateral_accel_mps2": np.sin(2 * np.pi * motion_time - 0.2),
+    })
+    result = analyze_lateral_frequency_response(frame, sampling_rate_hz=100.0)
+    yaw = result["responses"]["yaw_rate"]
+    peak = np.argmin(np.abs(np.asarray(yaw["frequency_hz"]) - 1.0))
+    assert yaw["magnitude"][peak] == pytest.approx(0.5, abs=0.02)
+    assert yaw["phase_deg"][peak] == pytest.approx(-np.degrees(0.2), abs=1.0)
+    assert yaw["timebase"]["method"] == "linear_interpolation_of_source_timestamps"
+    with pytest.raises(ValueError, match="gap exceeding"):
+        analyze_lateral_frequency_response(frame.drop(index=100))
+    with pytest.raises(ValueError, match="anti-alias"):
+        analyze_lateral_frequency_response(frame, sampling_rate_hz=50.0)
+    repeated = frame.copy()
+    repeated.loc[10, "steering_feedback_source_time_sec"] = repeated.loc[
+        9, "steering_feedback_source_time_sec"]
+    with pytest.raises(ValueError, match="conflicting"):
+        analyze_lateral_frequency_response(repeated)
+    fallback = frame.copy()
+    fallback["localization_source_time_is_receive"] = True
+    with pytest.raises(ValueError, match="receive-time fallbacks"):
+        analyze_lateral_frequency_response(fallback)
+    custom = frame.assign(other_steering=frame["steering_feedback"])
+    with pytest.raises(ValueError, match="do not identify"):
+        analyze_lateral_frequency_response(custom, steering_column="other_steering")
+
+
+def test_lateral_frequency_checks_snapshot_time_for_legacy_logs():
+    t = np.arange(100) * 0.01
+    snapshot = t.copy()
+    snapshot[50] += 0.002
+    frame = pd.DataFrame({
+        "elapsed_sec": t, "collector_monotonic_sec": snapshot,
+        "localization_source_time_sec": 1000.0 + t,
+        "steering_feedback": np.sin(t * 10),
+        "yaw_rate_radps": np.sin(t * 10),
+        "lateral_accel_mps2": np.sin(t * 10),
+    })
+    with pytest.raises(ValueError, match="uniformly sampled"):
+        analyze_lateral_frequency_response(frame)
+
+
+def test_lateral_frequency_reports_actual_source_rate_for_repeated_samples():
+    elapsed = np.arange(1000) * 0.01
+    source = np.floor(np.arange(1000) / 2) * 0.02
+    steering = np.sin(2 * np.pi * source)
+    frame = pd.DataFrame({
+        "elapsed_sec": elapsed, "sample_elapsed_sec": elapsed,
+        "steering_feedback_source_time_sec": 1000.0 + source,
+        "localization_source_time_sec": 1000.0 + source,
+        "steering_feedback": steering, "yaw_rate_radps": steering * 0.5,
+        "lateral_accel_mps2": steering,
+    })
+    yaw = analyze_lateral_frequency_response(
+        frame, sampling_rate_hz=100.0)["responses"]["yaw_rate"]
+    assert yaw["sampling_rate_hz"] == pytest.approx(50.0)
+    assert yaw["timebase"]["source_sample_counts"] == [500, 500]
+
+
 def test_lateral_analysis_rejects_unaligned_samples():
     frame = pd.DataFrame({
         "elapsed_sec": [0.0, 0.01, 0.02, 0.03],
@@ -336,6 +491,24 @@ def test_phase1_reports_both_directions_step_ramp_and_frequency(tmp_path):
         if result["test_type"] == "steering_deadzone_rate":
             assert result["metrics"]["deadzone"] is None
             assert result["metrics"]["peak_observed_feedback_rate"] > 0
+
+
+def test_phase1_rejects_source_rate_below_plan(tmp_path):
+    case = generate_phase1_plan(output="", amplitude=2.0)[-1]
+
+    def use_half_rate_source(frame):
+        source = np.floor(np.arange(len(frame)) / 2) * 0.02
+        feedback = np.sin(2 * np.pi * source)
+        frame["steering_feedback_source_time_sec"] = 1000.0 + source
+        frame["localization_source_time_sec"] = 1000.0 + source
+        frame["steering_feedback"] = feedback
+        frame["yaw_rate_radps"] = 0.1 * feedback
+        frame["lateral_accel_mps2"] = 0.2 * feedback
+
+    _write_phase1_run(tmp_path, case, use_half_rate_source)
+    report = analyze_phase1_suite(tmp_path, expected_plan=[case])
+    assert report["status"] == "FAIL"
+    assert "effective frequency sample rate" in report["results"][0]["reason"]
 
 
 @pytest.mark.parametrize("column", [

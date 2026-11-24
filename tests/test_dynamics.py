@@ -192,6 +192,16 @@ def test_frequency_analysis_returns_bode_arrays():
     assert result["bandwidth_hz"] is None
 
 
+def test_frequency_coherence_requires_multiple_welch_segments():
+    t = np.arange(200) / 50.0
+    frame = pd.DataFrame({"time": t, "command": np.sin(t), "feedback": np.sin(t)})
+    result = analyze_frequency_response(frame)
+    assert result["welch_segment_count"] >= 2
+    assert result["welch_segment_samples"] == 100
+    with pytest.raises(ValueError, match="at least two Welch segments"):
+        analyze_frequency_response(frame, nperseg=200)
+
+
 def test_dynamic_log_detection_uses_metadata():
     assert is_dynamic_log(pd.DataFrame({
         "mode": ["sweep"],

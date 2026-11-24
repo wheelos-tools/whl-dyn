@@ -186,3 +186,15 @@ and estimated delay.  Treat low-coherence frequencies and receive-time-only
 logs as diagnostic evidence rather than calibrated physical delay. When a run
 contains `time_aligned`, the analyzer rejects rows whose flag is false and
 fails if no aligned rows remain.
+
+New runs retain separate steering and localization source timestamps, the
+snapshot time and command publication bounds. Frequency analysis aligns the
+two actual source time series by linear interpolation on their common time
+range; it reports the method, source counts, effective sample rate and Welch
+segment count. It rejects conflicting duplicate timestamps, backward time,
+source gaps over 1.5 median periods, stale or future timestamps, and requested
+downsampling without an anti-alias filter. Interpolation does not create new
+sensor measurements or remove aliasing already present at acquisition. Legacy
+runs without steering-source timestamps use the recorded snapshot time and
+must already be uniformly sampled. Phase 1 frequency cases fail if their
+effective rate is below 95% of the planned rate.

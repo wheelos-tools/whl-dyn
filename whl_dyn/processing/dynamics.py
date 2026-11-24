@@ -215,9 +215,13 @@ def analyze_frequency_response(df, input_col=None, output_col=None,
         raise ValueError("sampling rate must be finite and positive")
     if not np.allclose(np.diff(t), 1.0 / fs, rtol=0.05, atol=1e-6):
         raise ValueError("frequency analysis requires uniformly sampled data at the declared rate")
-    segment = int(nperseg or min(256, len(t)))
+    segment = int(nperseg if nperseg is not None else min(256, len(t) // 2))
     if segment < 4:
-        raise ValueError("at least four samples are required for frequency analysis")
+        raise ValueError("at least eight samples are required for frequency analysis")
+    hop = segment - segment // 2
+    if len(t) < segment + hop:
+        raise ValueError("frequency analysis requires at least two Welch segments")
+    segment_count = 1 + (len(t) - segment) // hop
     frequencies, pxx = signal.welch(u, fs=fs, nperseg=segment)
     _, pxy = signal.csd(u, y, fs=fs, nperseg=segment)
     _, coherence = signal.coherence(u, y, fs=fs, nperseg=segment)
@@ -273,6 +277,8 @@ def analyze_frequency_response(df, input_col=None, output_col=None,
         "input_signal": in_col,
         "output_signal": out_col,
         "sampling_rate_hz": fs,
+        "welch_segment_samples": segment,
+        "welch_segment_count": segment_count,
         "frequency_hz": frequencies.tolist(),
         "magnitude": magnitude.tolist(),
         "magnitude_db": magnitude_db.tolist(),

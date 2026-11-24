@@ -10,6 +10,7 @@ changes.
 | Installation, usage and commands | [User guide](user_guide.md) |
 | Current test items and capability boundaries | [Test inventory](current_test_cases.md) |
 | Test-item rationale, industry comparison and recommendations | [Test program assessment](test_program_assessment.md) |
+| Bounded simulation experiment and per-item availability | [Simulation validation, 2026-11-24](simulation_validation_2026-11-24.md) |
 | Longitudinal calibration and dynamic workflows | [Longitudinal actuator workbench](vehicle_dynamics.md) |
 | Lateral open-loop collection and analysis | [Lateral vehicle dynamics](lateral_vehicle_dynamics.md) |
 | Handling workflow and operating precautions | [Handling test phases](handling_test_phases.md) |

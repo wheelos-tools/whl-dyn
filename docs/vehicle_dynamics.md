@@ -85,6 +85,8 @@ hysteresis collection is supported, but `analyze_dynamic` explicitly rejects
 these modes until dedicated quantitative analysis is available.
 
 Frequency analysis requires uniform sample times and a matching sample rate.
+The default Welch segment length is limited to half the record and at least two
+overlapping segments are required; segment length and count are reported.
 Bandwidth is only estimated when coherent low-frequency plateau and cutoff
 coverage exist; otherwise it is unavailable. Phase delay includes plant dynamics
 and must not be interpreted as pure transport delay. The step

@@ -47,6 +47,11 @@ def message_time(message, fallback):
     return float(header_time) if header_time else float(fallback)
 
 
+def message_time_is_receive(message):
+    return not (getattr(message, "measurement_time", 0.0) or
+                nested_value(message, "header.timestamp_sec", 0.0))
+
+
 def localization_signals(message, received_time):
     """Normalize localization output into the public collection schema."""
 
@@ -71,6 +76,7 @@ def localization_signals(message, received_time):
     sin_heading = math.sin(heading)
     return {
         "localization_source_time_sec": message_time(message, received_time),
+        "localization_source_time_is_receive": message_time_is_receive(message),
         "localization_signals_valid": valid,
         "speed_mps": speed,
         "longitudinal_velocity_mps": (
@@ -131,15 +137,19 @@ class LateralSignalCollector:
                 self._on_localization),
         ]
 
-    def _put(self, values):
-        values["received_time_sec"] = time.time()
+    def _put(self, values, source, received_time, received_monotonic):
+        values["received_time_sec"] = received_time
+        values["{}_received_time_sec".format(source)] = received_time
+        values["{}_received_monotonic_sec".format(source)] = received_monotonic
         with self._lock:
             self._latest.update(values)
 
     def _on_chassis(self, message):
         now = time.time()
+        now_mono = time.monotonic()
         values = {
             "chassis_source_time_sec": message_time(message, now),
+            "chassis_source_time_is_receive": message_time_is_receive(message),
             "chassis_speed_mps": float(getattr(message, "speed_mps", 0.0)),
             "driving_mode": int(getattr(message, "driving_mode", 0)),
         }
@@ -152,9 +162,11 @@ class LateralSignalCollector:
                     normalized *= float(
                         self.config.get("steering_feedback_scale", 1.0))
                 values[str(signal_name)] = normalized
-        self._put(values)
+        self._put(values, "chassis", now, now_mono)
 
     def _on_chassis_detail(self, message):
+        now = time.time()
+        now_mono = time.monotonic()
         if not message.HasField("chassis_extension"):
             return
         detail = self._detail_from_extension(message.chassis_extension)
@@ -162,7 +174,8 @@ class LateralSignalCollector:
             return
         mapping = self.config.get("detail_fields", {})
         values = {
-            "chassis_detail_source_time_sec": message_time(message, time.time()),
+            "chassis_detail_source_time_sec": message_time(message, now),
+            "chassis_detail_source_time_is_receive": message_time_is_receive(message),
         }
         for signal_name, field_path in mapping.items():
             value = nested_value(detail, field_path)
@@ -172,7 +185,7 @@ class LateralSignalCollector:
                     normalized *= float(
                         self.config.get("steering_feedback_scale", 1.0))
                 values[str(signal_name)] = normalized
-        self._put(values)
+        self._put(values, "chassis_detail", now, now_mono)
 
     def _detail_from_extension(self, extension):
         """Resolve an Any payload from its type URL before using YAML fallback."""
@@ -202,7 +215,9 @@ class LateralSignalCollector:
         return detail if extension.Unpack(detail) else None
 
     def _on_localization(self, message):
-        self._put(localization_signals(message, time.time()))
+        now = time.time()
+        now_mono = time.monotonic()
+        self._put(localization_signals(message, now), "localization", now, now_mono)
 
     def _steering_feedback_source(self):
         if "steering_feedback" in self.config.get("detail_fields", {}):
@@ -219,13 +234,21 @@ class LateralSignalCollector:
         processing can reject rows that exceed the configured skew.
         """
 
-        now_wall = time.time()
-        now_mono = time.monotonic()
         with self._lock:
             sample = dict(self._latest)
+            now_wall = time.time()
+            now_mono = time.monotonic()
         sample["collector_time_sec"] = now_wall
         sample["sample_time_sec"] = now_wall
         sample["collector_monotonic_sec"] = now_mono
+        feedback_source = self._steering_feedback_source()
+        if feedback_source:
+            feedback_time = sample.get(
+                "{}_source_time_sec".format(feedback_source))
+            if feedback_time is not None:
+                sample["steering_feedback_source_time_sec"] = feedback_time
+                sample["steering_feedback_source_time_is_receive"] = sample.get(
+                    "{}_source_time_is_receive".format(feedback_source), False)
         source_times = []
         for source in ("localization", "chassis", "chassis_detail"):
             source_time = sample.get("{0}_source_time_sec".format(source))
@@ -239,7 +262,6 @@ class LateralSignalCollector:
             sample["alignment_skew_sec"] = max(source_times) - min(source_times)
             required_sources = ["localization_source_time_sec",
                                 "chassis_source_time_sec"]
-            feedback_source = self._steering_feedback_source()
             if "steering_feedback" in sample and feedback_source:
                 required_sources.append(
                     "{}_source_time_sec".format(feedback_source))
@@ -260,12 +282,18 @@ class LateralSignalCollector:
             snapshot = self.snapshot()
             source_ready = ("localization_source_time_sec" in snapshot and
                             "chassis_source_time_sec" in snapshot)
+            source_ready = source_ready and all(
+                math.isfinite(float(snapshot.get(
+                    "{}_age_sec".format(source), float("inf")))) and
+                0.0 <= float(snapshot["{}_age_sec".format(source)]) <= float(
+                    self.config.get("max_source_age_sec", 0.5))
+                for source in ("localization", "chassis"))
             feedback_source = self._steering_feedback_source() or "chassis"
             feedback_ready = (
                 "steering_feedback" in snapshot and
-                snapshot.get("{}_age_sec".format(feedback_source),
-                             float("inf")) <= float(
-                                 self.config.get("max_feedback_age_sec", 0.5)))
+                0.0 <= snapshot.get(
+                    "{}_age_sec".format(feedback_source), float("inf")) <= float(
+                        self.config.get("max_feedback_age_sec", 0.5)))
             if source_ready and (not require_steering_feedback or feedback_ready):
                 return True
             time.sleep(0.05)
@@ -341,22 +369,23 @@ class LateralSignalCollector:
 
         target = float(profile.get("target", 0.0))
         ramp_end = float(profile.get("ramp_end_sec", 0.0))
-        started = time.monotonic()
+        if ramp_end <= 0.0 or abs(target) / ramp_end > maximum_rate + 1e-9:
+            raise RuntimeError("steering profile exceeds configured rate")
         previous = 0.0
+        previous_time = time.monotonic()
         while True:
-            elapsed = time.monotonic() - started
-            if elapsed >= ramp_end:
-                break
-            command = target * elapsed / ramp_end if ramp_end else target
+            now = time.monotonic()
+            interval = max(0.0, now - previous_time)
+            distance = min(abs(target), abs(previous) + abs(target) / ramp_end * interval)
+            command = math.copysign(distance, target)
             if abs(command) > maximum:
                 raise RuntimeError("steering profile exceeds configured limit")
-            command_rate = abs(command - previous) * sampling_rate
-            if command_rate > maximum_rate + 1e-9:
-                raise RuntimeError("steering profile exceeds configured rate")
             self.publish_control(command, 0.0)
             previous = command
+            previous_time = time.monotonic()
+            if distance >= abs(target):
+                break
             time.sleep(1.0 / sampling_rate)
-        self.publish_control(target, 0.0)
 
     def _control_writer(self):
         if self._writer is None:
@@ -485,6 +514,7 @@ class LateralSignalCollector:
             started = time.monotonic()
             next_sample = started
             previous_command = 0.0
+            previous_command_time = None
             target_turn_angle = 2.0 * math.pi * turn_count
             accumulated_turn_angle = 0.0
             turn_count_reached = False
@@ -506,11 +536,6 @@ class LateralSignalCollector:
                     )
                     if abs(command) > maximum:
                         raise RuntimeError("steering profile exceeds configured limit")
-                    if (not case.get("allow_command_step", False) and
-                            samples and
-                            abs(command - previous_command) / (1.0 / sampling_rate) >
-                            maximum_rate):
-                        raise RuntimeError("steering profile exceeds configured rate")
                     if not self._speed_in_gate(speed_gate):
                         raise RuntimeError("vehicle left configured speed range")
                     feedback_snapshot = self.snapshot()
@@ -523,16 +548,18 @@ class LateralSignalCollector:
                     for source in ("localization", "chassis"):
                         age = feedback_snapshot.get(
                             "{}_age_sec".format(source), float("inf"))
-                        if not math.isfinite(float(age)) or float(age) > float(
-                                self.config.get("max_source_age_sec", 0.5)):
+                        if (not math.isfinite(float(age)) or
+                                not 0.0 <= float(age) <= float(
+                                    self.config.get("max_source_age_sec", 0.5))):
                             raise RuntimeError(
                                 "{} source became stale".format(source))
                     feedback = feedback_snapshot.get("steering_feedback")
                     feedback_source = self._steering_feedback_source() or "chassis"
                     feedback_age = feedback_snapshot.get(
                         "{}_age_sec".format(feedback_source), float("inf"))
-                    if float(feedback_age) > float(
-                            self.config.get("max_feedback_age_sec", 0.5)):
+                    if (not math.isfinite(float(feedback_age)) or
+                            not 0.0 <= float(feedback_age) <= float(
+                                self.config.get("max_feedback_age_sec", 0.5))):
                         raise RuntimeError("steering feedback became stale")
                     if (feedback is None or not math.isfinite(float(feedback)) or
                             abs(float(feedback)) > maximum_feedback):
@@ -549,10 +576,26 @@ class LateralSignalCollector:
                             float(max_lateral_accel)):
                         raise RuntimeError(
                             "vehicle exceeded lateral acceleration limit")
+                    command_time = time.monotonic()
+                    if (not case.get("allow_command_step", False) and
+                            previous_command_time is not None):
+                        interval = command_time - previous_command_time
+                        if (interval <= 0.0 or
+                                abs(command - previous_command) / interval >
+                                maximum_rate + 1e-9):
+                            raise RuntimeError(
+                                "steering profile exceeds configured rate")
                     self.publish_control(command, longitudinal=longitudinal)
                     previous_command = command
+                    previous_command_time = time.monotonic()
                 sample = self.snapshot()
                 sample["elapsed_sec"] = elapsed
+                sample["sample_elapsed_sec"] = (
+                    sample["collector_monotonic_sec"] - started)
+                if execute:
+                    sample["command_elapsed_sec"] = command_time - started
+                    sample["command_publish_complete_elapsed_sec"] = (
+                        previous_command_time - started)
                 sample["sample_index"] = len(samples)
                 sample["steering_command"] = previous_command if execute else float("nan")
                 sample["case_phase"] = (

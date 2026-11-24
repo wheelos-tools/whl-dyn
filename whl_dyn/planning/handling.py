@@ -17,12 +17,7 @@ class OpenLoopPlanConfig:
     step_hold_sec: float = 8.0
     ramp_rate: float = 1.0
     max_steering: float = 40.0
-    # The live collector compares command deltas to a fixed nominal sample
-    # interval rather than actual wall-clock spacing, so this default keeps
-    # headroom above the chirp/PRBS peak rate requirement (~31 units/s at
-    # the default amplitude and frequency range) to absorb real scheduling
-    # jitter on a shared test host without loosening any vehicle actuator
-    # limit.
+    # Keep headroom above the default chirp/PRBS peak rate requirement.
     max_steering_rate: float = 100.0
 
 
@@ -72,8 +67,7 @@ def generate_open_loop_identification_plan(config=None, output=None, **kwargs):
         "domain": "vehicle_dynamics",
         "phase": "open_loop_identification",
         "actuator": "steering",
-        # Match the simulator's 20 ms control interval so command samples
-        # correspond one-to-one with applied control updates.
+        # Step and slow-ramp collection use a 50 Hz command/snapshot loop.
         "sampling_rate_hz": 50.0,
         "input_signals": ["steering_command", "steering_feedback"],
         "output_signals": ["yaw_rate_radps", "lateral_accel_mps2"],
