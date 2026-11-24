@@ -16,25 +16,40 @@ class MetricsEvaluator:
         # Collect deadzone values across all speed points
         t_deadzone_values = []
         b_deadzone_values = []
+        coast_accel = np.full(len(speed_grid), np.nan)
+        if processed_df is not None and not processed_df.empty:
+            coast = processed_df[processed_df['command'] == 0].groupby(
+                'final_speed')['accel_aligned'].mean().sort_index()
+            if len(coast) >= 2:
+                coast_accel = np.interp(
+                    speed_grid, coast.index, coast.values,
+                    left=np.nan, right=np.nan)
 
         for j in range(len(speed_grid)):
-            # Throttle deadzone: find first positive command with accel > threshold
+            if not np.isfinite(coast_accel[j]):
+                continue
+            # These are resolved response thresholds relative to measured coast,
+            # not actuator-internal deadzones or zero-net-acceleration commands.
             for i, cmd in enumerate(command_grid):
-                if cmd > 0 and np.isfinite(grid_z[i, j]) and grid_z[i, j] > accel_threshold:
+                if cmd > 0 and np.isfinite(grid_z[i, j]) and grid_z[i, j] - coast_accel[j] > accel_threshold:
                     t_deadzone_values.append(cmd)
                     break
 
             # Brake deadzone: find first negative command with accel < -threshold
             for i, cmd in reversed(list(enumerate(command_grid))):
-                if cmd < 0 and np.isfinite(grid_z[i, j]) and grid_z[i, j] < -accel_threshold:
+                if cmd < 0 and np.isfinite(grid_z[i, j]) and grid_z[i, j] - coast_accel[j] < -accel_threshold:
                     b_deadzone_values.append(abs(cmd))
                     break
 
         # Use median for robustness
-        metrics['throttle_deadzone_pct'] = float(np.median(t_deadzone_values)) if t_deadzone_values else 0.0
-        metrics['brake_deadzone_pct'] = float(np.median(b_deadzone_values)) if b_deadzone_values else 0.0
-        metrics['throttle_deadzone_std'] = float(np.std(t_deadzone_values)) if len(t_deadzone_values) > 1 else 0.0
-        metrics['brake_deadzone_std'] = float(np.std(b_deadzone_values)) if len(b_deadzone_values) > 1 else 0.0
+        metrics['throttle_deadzone_pct'] = float(np.median(t_deadzone_values)) if t_deadzone_values else None
+        metrics['brake_deadzone_pct'] = float(np.median(b_deadzone_values)) if b_deadzone_values else None
+        metrics['throttle_deadzone_std'] = float(np.std(t_deadzone_values)) if t_deadzone_values else None
+        metrics['brake_deadzone_std'] = float(np.std(b_deadzone_values)) if b_deadzone_values else None
+        metrics['deadzone_reference'] = 'measured_coast'
+        metrics['residual_scope'] = 'in_sample_not_independent_validation'
+        throttle_threshold = metrics['throttle_deadzone_pct'] or 0.0
+        brake_threshold = metrics['brake_deadzone_pct'] or 0.0
 
         # ========================================================================
         # 2. Linearity (R^2 over slices)
@@ -42,7 +57,7 @@ class MetricsEvaluator:
         r2_t = []
         r2_t_low_speed = []  # Low speed (0.5-3 m/s) - critical for control, exclude stationary
         for j in range(len(speed_grid)):
-            mask = ((command_grid > metrics['throttle_deadzone_pct']) &
+            mask = ((command_grid > throttle_threshold) &
                     np.isfinite(grid_z[:, j]))
             if np.sum(mask) > 2:
                 _, _, r, _, _ = linregress(command_grid[mask], grid_z[mask, j])
@@ -55,7 +70,7 @@ class MetricsEvaluator:
         r2_b = []
         r2_b_low_speed = []
         for j in range(len(speed_grid)):
-            mask = ((command_grid < -metrics['brake_deadzone_pct']) &
+            mask = ((command_grid < -brake_threshold) &
                     np.isfinite(grid_z[:, j]))
             if np.sum(mask) > 2:
                 _, _, r, _, _ = linregress(command_grid[mask], grid_z[mask, j])
@@ -71,7 +86,7 @@ class MetricsEvaluator:
         throttle_mask = command_grid > 0
         brake_mask = command_grid < 0
 
-        if np.any(throttle_mask) and grid_z.shape[1] > 2:
+        if np.count_nonzero(throttle_mask) > 1 and grid_z.shape[1] > 2:
             throttle_grid = grid_z[throttle_mask, :]
             dx2_t = np.gradient(np.gradient(throttle_grid, axis=0), axis=0)
             dy2_t = np.gradient(np.gradient(throttle_grid, axis=1), axis=1)
@@ -82,7 +97,7 @@ class MetricsEvaluator:
             metrics['throttle_smoothness_score_100'] = 0.0
             metrics['throttle_smoothness_laplacian_mean'] = 0.0
 
-        if np.any(brake_mask) and grid_z.shape[1] > 2:
+        if np.count_nonzero(brake_mask) > 1 and grid_z.shape[1] > 2:
             brake_grid = grid_z[brake_mask, :]
             dx2_b = np.gradient(np.gradient(brake_grid, axis=0), axis=0)
             dy2_b = np.gradient(np.gradient(brake_grid, axis=1), axis=1)
@@ -107,8 +122,8 @@ class MetricsEvaluator:
         # ========================================================================
         # 4. Response Range Check
         # ========================================================================
-        throttle_mask = command_grid > metrics['throttle_deadzone_pct']
-        brake_mask = command_grid < -metrics['brake_deadzone_pct']
+        throttle_mask = command_grid > throttle_threshold
+        brake_mask = command_grid < -brake_threshold
 
         if np.any(throttle_mask):
             throttle_values = grid_z[throttle_mask, :]

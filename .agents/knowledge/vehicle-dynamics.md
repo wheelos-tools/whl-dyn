@@ -18,7 +18,7 @@ trajectory, or test acceptance rule.
 - Vehicle-specific signals, limit thresholds, and unit conversions must remain
   outside the generic plan and processing modules.
 - Assessment conclusions and missing acceptance criteria belong in the
-  vehicle-dynamics assessment, not in this index.
+  formal assessments under `docs/`, not in this index.
 
 ## Sources
 
@@ -38,3 +38,4 @@ trajectory, or test acceptance rule.
 - `docs/handling_test_phases.md`
 - `docs/lateral_vehicle_dynamics.md`
 - `docs/open_loop_lateral_identification_assessment.md`
+- `docs/test_program_assessment.md`

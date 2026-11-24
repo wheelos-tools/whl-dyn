@@ -17,12 +17,15 @@ developing from a checkout.
 
 ## Documentation
 
+See the [documentation index](docs/README.md) for all formal project documents.
+
 | Topic | Document |
 | --- | --- |
 | Installation and commands | [`docs/user_guide.md`](docs/user_guide.md) |
 | Lateral open-loop frequency tests | [`docs/lateral_vehicle_dynamics.md`](docs/lateral_vehicle_dynamics.md) |
 | Phase 1--3 handling workflow | [`docs/handling_test_phases.md`](docs/handling_test_phases.md) |
 | Implemented test inventory | [`docs/current_test_cases.md`](docs/current_test_cases.md) |
+| Test rationale, industry comparison and priorities | [`docs/test_program_assessment.md`](docs/test_program_assessment.md) |
 | Capability assessment and gaps | [`docs/open_loop_lateral_identification_assessment.md`](docs/open_loop_lateral_identification_assessment.md) |
 | Agent knowledge and task procedures | [`AGENTS.md`](AGENTS.md) |
 

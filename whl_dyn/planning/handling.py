@@ -3,6 +3,7 @@
 from dataclasses import asdict, dataclass
 
 import yaml
+from whl_dyn.planning.preflight import validate_open_loop_plan
 
 
 @dataclass
@@ -45,7 +46,7 @@ def generate_phase1_plan(output=None, **kwargs):
         for direction in (1.0, -1.0):
             cases.extend(generate_lateral_frequency_plan(
                 output="", mode=mode, duration_sec=duration,
-                steering_amplitude=abs(float(values["amplitude"])),
+                steering_amplitude=direction * abs(float(values["amplitude"])),
                 target_speed_mps=values["target_speed_mps"],
                 speed_tolerance_mps=values["speed_tolerance_mps"],
                 max_steering=values["max_steering"],
@@ -117,6 +118,7 @@ def generate_open_loop_identification_plan(config=None, output=None, **kwargs):
                 "ramp_end_sec": ramp_duration,
             },
         }))
+    validate_open_loop_plan(cases)
     destination = output if output is not None else values.get("output")
     if destination:
         with open(destination, "w") as plan_file:
@@ -229,6 +231,7 @@ def generate_steady_state_circle_plan(config=None, output=None, **kwargs):
                             "ramp_end_sec": ramp_duration,
                         },
                     })
+    validate_open_loop_plan(cases)
     destination = output if output is not None else values.get("output")
     if destination:
         with open(destination, "w") as plan_file:

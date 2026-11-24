@@ -92,7 +92,7 @@ def _install_generated_messages(monkeypatch):
             "wheelos_msgs.planning_msgs.planning_pb2"),
     }
     modules["wheelos_msgs.chassis_msgs.chassis_pb2"].Chassis = type(
-        "Chassis", (), {"GEAR_DRIVE": 3})
+        "Chassis", (), {"GEAR_DRIVE": 1})
     modules["wheelos_msgs.control_msgs.control_cmd_pb2"].ControlCommand = (
         _ControlCommand)
     modules["wheelos_msgs.localization_msgs.localization_pb2"].LocalizationEstimate = (
@@ -116,8 +116,8 @@ def test_closed_loop_runtime_uses_wheelos_messages_and_drive_gear(monkeypatch):
 
     assert [topic for topic, _, _ in node.readers] == [
         "/apollo/localization/pose", "/apollo/canbus/chassis", "/apollo/control"]
-    assert trajectory.gear == 3
-    assert node.writers[-1][2].messages[0].gear_location == 3
+    assert trajectory.gear == 1
+    assert node.writers[-1][2].messages[0].gear_location == 1
 
 
 def test_closed_loop_reads_active_lat_debug_and_does_not_default_to_mpc(monkeypatch):

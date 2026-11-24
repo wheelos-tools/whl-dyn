@@ -62,18 +62,24 @@ def tracking_metrics(frame, lateral_column="lateral_error_m",
 
 
 def steady_state_handling_metrics(frame, steering_rad_column,
-                                  kappa_column="reference_kappa_1pm",
+                                  kappa_column="curvature_1pm",
                                   lateral_accel_column="lateral_accel_mps2",
                                   wheelbase_m=None):
-    """Fit ``delta - L*kappa = Ku*ay + offset`` on a selected steady window."""
+    """Fit ``delta - L*kappa = Ku*ay + offset`` using measured road-wheel angle
+    and measured curvature across distinct steady operating points.
+    """
 
+    if wheelbase_m is None or not np.isfinite(wheelbase_m) or wheelbase_m <= 0:
+        raise ValueError("a finite positive wheelbase_m is required for understeer gradient")
     columns = [steering_rad_column, kappa_column, lateral_accel_column]
     values = _finite(_aligned_frame(frame), columns)
     steering = values[steering_rad_column].to_numpy(dtype=float)
     kappa = values[kappa_column].to_numpy(dtype=float)
     lateral_accel = values[lateral_accel_column].to_numpy(dtype=float)
-    corrected = steering - (float(wheelbase_m) * kappa if wheelbase_m else 0.0)
+    corrected = steering - float(wheelbase_m) * kappa
     design = np.column_stack((lateral_accel, np.ones(len(lateral_accel))))
+    if len(values) < 3 or np.linalg.matrix_rank(design) < 2:
+        raise ValueError("understeer gradient requires distinct steady lateral accelerations")
     gradient, offset = np.linalg.lstsq(design, corrected, rcond=None)[0]
     predicted = gradient * lateral_accel + offset
     residual = corrected - predicted
@@ -100,6 +106,12 @@ def select_steady_state_samples(frame, speed_target_mps, speed_tolerance_mps,
     if any(column not in frame for column in required):
         raise ValueError("steady-state selection requires collected case phase and speed")
     values = _aligned_frame(frame)
+    _finite(values, ["elapsed_sec", "chassis_speed_mps"])
+    if not all(np.isfinite(value) for value in (
+            speed_target_mps, speed_tolerance_mps, settle_after_ramp_sec)):
+        raise ValueError("steady-state selection parameters must be finite")
+    if speed_target_mps <= 0 or speed_tolerance_mps < 0 or settle_after_ramp_sec < 0:
+        raise ValueError("invalid steady-state speed or settling interval")
     elapsed = pd.to_numeric(values["elapsed_sec"], errors="coerce")
     speed = pd.to_numeric(values["chassis_speed_mps"], errors="coerce")
     steady = values["case_phase"].astype(str).eq("steady")
@@ -120,7 +132,7 @@ def fixed_steering_steady_state_metrics(
         road_wheel_column=None, speed_column="chassis_speed_mps",
         yaw_rate_column="yaw_rate_radps",
         lateral_accel_column="lateral_accel_mps2",
-        sideslip_column="sideslip_rad", esc_column="esc_active",
+        sideslip_column="sideslip_rad",
         wheel_slip_column="wheel_slip_ratio", wheelbase_m=None,
         max_abs_sideslip_rad=None, max_sideslip_rate_radps=None,
         max_yaw_rate_error_radps=None, max_abs_wheel_slip=None):
@@ -141,7 +153,7 @@ def fixed_steering_steady_state_metrics(
     lateral_accel = values[lateral_accel_column].to_numpy(dtype=float)
     steering_wheel = values[steering_wheel_column].to_numpy(dtype=float)
     nonzero_speed = np.abs(speed) > np.finfo(float).eps
-    if not np.any(nonzero_speed):
+    if not np.all(nonzero_speed):
         raise ValueError("steady-state metrics require non-zero speed")
     curvature = yaw_rate[nonzero_speed] / speed[nonzero_speed]
     radius = 1.0 / np.abs(curvature[np.abs(curvature) > np.finfo(float).eps])
@@ -203,13 +215,6 @@ def fixed_steering_steady_state_metrics(
                                 result["kinematic_yaw_rate_error_peak_radps"],
                                 max_yaw_rate_error_radps)
 
-    esc = _aligned_optional(frame, values.index, esc_column)
-    result["esc_active_fraction"] = (
-        float(np.mean(esc.to_numpy(dtype=float) != 0.0)) if esc is not None else None)
-    result["limit_flags"]["esc_intervention"] = (
-        result["esc_active_fraction"] > 0.0
-        if result["esc_active_fraction"] is not None else None)
-
     wheel_slip = _aligned_optional(frame, values.index, wheel_slip_column)
     result["wheel_slip_peak"] = (
         float(np.max(np.abs(wheel_slip.to_numpy(dtype=float))))
@@ -227,7 +232,9 @@ def _aligned_optional(frame, index, column):
     if not column or column not in frame:
         return None
     values = pd.to_numeric(frame.loc[index, column], errors="coerce")
-    return values if values.notna().all() else None
+    if not np.isfinite(values.to_numpy(dtype=float)).all():
+        raise ValueError("non-finite optional signal: {0}".format(column))
+    return values
 
 
 def _ratio_mean(numerator, denominator):

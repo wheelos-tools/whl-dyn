@@ -1,9 +1,12 @@
 import numpy as np
+import json
 import pandas as pd
 import pytest
 
 from whl_dyn.processing.config import CalibrationConfig
 from whl_dyn.processing.data_core import DataCore
+from whl_dyn.processing.exporter import Exporter
+from whl_dyn.processing.metrics import MetricsEvaluator
 
 
 def _write_constant_command_file(path, t0, cmd_val, n=60, speed=1.0,
@@ -70,6 +73,94 @@ def test_calibration_table_does_not_extrapolate_unmeasured_speed(tmp_path):
 
     assert np.isfinite(brake_row[np.searchsorted(speed_grid, 0.8)])
     assert np.isnan(brake_row[np.searchsorted(speed_grid, 1.8)])
+
+
+@pytest.mark.parametrize("commands", [[20.0, 40.0], [-40.0, -20.0],
+                                     [-20.0, 0.0, 20.0]])
+def test_calibration_preserves_net_acceleration_and_unmeasured_cells(commands):
+    core = DataCore(CalibrationConfig(
+        speed_resolution=0.5, command_resolution=20.0))
+    core.processed_df = pd.DataFrame([
+        {"final_speed": speed, "command": command,
+         "accel_aligned": 0.01 * command - 0.4}
+        for speed in (1.0, 2.0) for command in commands
+    ])
+    speeds, commands, acceleration = core.build_calibration_table()
+    np.testing.assert_allclose(
+        acceleration[:, np.where(speeds == 1.0)[0][0]], 0.01 * commands - 0.4)
+    assert np.isnan(acceleration[:, speeds < 1.0]).all()
+
+
+def test_control_export_preserves_zero_and_omits_unknown_cells(tmp_path):
+    with pytest.warns(RuntimeWarning, match="Omitting 2"):
+        Exporter.save_protobuf(
+            [1.0, 2.0], [-20.0, 20.0],
+            np.array([[-0.6, np.nan], [0.0, np.inf]]), tmp_path)
+    text = (tmp_path / "calibration_table.pb.txt").read_text()
+    assert "nan" not in text and "inf" not in text
+    assert text.count("calibration {") == 2
+    assert "acceleration: 0.0" in text
+    with pytest.raises(ValueError, match="no measured"):
+        Exporter.save_protobuf([1.0], [20.0], [[np.nan]], tmp_path)
+    assert (tmp_path / "calibration_table.pb.txt").read_text() == text
+
+
+def test_response_threshold_requires_measured_coast_baseline():
+    speeds = np.array([1.0, 2.0, 3.0])
+    commands = np.array([-20.0, 0.0, 20.0])
+    grid = np.tile([-0.6, -0.4, -0.2], (3, 1)).T
+    unknown = MetricsEvaluator.evaluate(speeds, commands, grid)
+    assert unknown["throttle_deadzone_pct"] is None
+    assert unknown["brake_deadzone_pct"] is None
+    coast = pd.DataFrame({
+        "final_speed": [1.0, 3.0], "command": [0.0, 0.0],
+        "accel_aligned": [-0.4, -0.4],
+    })
+    measured = MetricsEvaluator.evaluate(speeds, commands, grid, coast)
+    assert measured["throttle_deadzone_pct"] == 20.0
+    assert measured["brake_deadzone_pct"] == 20.0
+
+
+def test_aborted_recording_does_not_enter_calibration(tmp_path, capsys):
+    path = tmp_path / "aborted.csv"
+    _write_constant_command_file(path, 0.0, 20)
+    path.with_suffix(".status.json").write_text(json.dumps({
+        "completed": False, "abort_reason": "speed limit",
+    }))
+    core = DataCore(CalibrationConfig())
+    core.load_data(tmp_path)
+    assert not core.raw_dfs
+    assert "did not complete successfully" in capsys.readouterr().out
+
+
+def test_repeated_command_after_brake_gets_its_own_stability_window(tmp_path):
+    command = np.repeat([20.0, -20.0, 20.0], 30)
+    frame = pd.DataFrame({
+        "time": np.arange(len(command)) / 10.0,
+        "speed_mps": 1.0, "imu_accel_y": command / 100.0,
+        "ctl_throttle": np.maximum(command, 0),
+        "ctl_brake": np.maximum(-command, 0),
+    })
+    frame.to_csv(tmp_path / "repeated.csv", index=False)
+    core = DataCore(CalibrationConfig(enable_lof=False, throttle_latency_ms=0,
+                                     brake_latency_ms=0, throttle_stability_window_ms=200))
+    core.load_data(tmp_path)
+    core.process_signals()
+    after_second_switch = core.processed_df[core.processed_df["time"] >= 6.0]
+    assert after_second_switch["time"].min() >= 6.3
+
+
+def test_calibration_interpolation_predicts_withheld_speed_with_drag():
+    core = DataCore(CalibrationConfig(speed_resolution=0.5, command_resolution=10))
+    core.processed_df = pd.DataFrame([
+        {"final_speed": speed, "command": command,
+         "accel_aligned": 0.02 * command - 0.1 * speed}
+        for speed in (1.0, 3.0) for command in (-20.0, 20.0)
+    ])
+    speeds, commands, grid = core.build_calibration_table()
+    np.testing.assert_allclose(
+        grid[:, np.where(speeds == 2.0)[0][0]], 0.02 * commands - 0.2,
+        atol=1e-12)
 
 
 def test_filter_does_not_leak_between_command_segments(tmp_path):

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from whl_dyn.processing.dynamics import analyze_frequency_response
+from whl_dyn.processing.dynamics import analyze_frequency_response, analyze_step_response
 
 
 def _actual_steering(frame, steering_column=None):
@@ -104,6 +104,9 @@ def analyze_phase1_suite(run_root, expected_plan=None):
         str(case["case_name"]) for case in (expected_plan or [])
         if isinstance(case, dict) and case.get("case_name")
     }
+    if len(expected_names) != len(expected_plan):
+        raise ValueError("expected plan requires unique, named cases")
+    expected_cases = {str(case["case_name"]): case for case in expected_plan}
     actual_names = set()
     actual_name_list = []
     results = []
@@ -126,12 +129,23 @@ def analyze_phase1_suite(run_root, expected_plan=None):
                 case_name = str(case.get("case_name", ""))
                 actual_names.add(case_name)
                 actual_name_list.append(case_name)
+                if case != expected_cases.get(case_name):
+                    raise ValueError("recorded case does not match the expected plan")
                 required = ("steering_command", "steering_feedback",
                             "yaw_rate_radps", "lateral_accel_mps2")
                 missing = [column for column in required if column not in frame]
                 if missing:
                     raise ValueError("missing required signals: {0}".format(
                         ", ".join(missing)))
+                quality_fields = (
+                    "time_aligned", "localization_signals_valid",
+                    "localization_age_sec", "chassis_age_sec", "chassis_speed_mps")
+                if any(column not in frame for column in quality_fields):
+                    raise ValueError("Phase 1 report requires persisted source-quality signals")
+                if "sources_fresh" in frame and not bool(
+                        frame["sources_fresh"].astype(str).str.lower().isin(
+                            ("true", "1", "yes")).all()):
+                    raise ValueError("source freshness gate failed")
                 if "time_aligned" in frame and not bool(
                         frame["time_aligned"].astype(str).str.lower().isin(
                             ("true", "1", "yes")).all()):
@@ -145,7 +159,7 @@ def analyze_phase1_suite(run_root, expected_plan=None):
                     if age_column in frame:
                         ages = pd.to_numeric(frame[age_column], errors="coerce")
                         if not np.isfinite(ages.to_numpy()).all() or (
-                                ages > 0.5).any():
+                                (ages > 0.5) | (ages < 0.0)).any():
                             raise ValueError(
                                 "source freshness gate failed: {0}".format(
                                     age_column))
@@ -162,8 +176,10 @@ def analyze_phase1_suite(run_root, expected_plan=None):
                     raise ValueError("samples require a time column")
                 elapsed = pd.to_numeric(frame[time_column], errors="coerce")
                 if not np.isfinite(elapsed.to_numpy()).all() or (
-                        np.diff(elapsed.to_numpy()) < 0.0).any():
+                        np.diff(elapsed.to_numpy()) <= 0.0).any():
                     raise ValueError("sample time is invalid")
+                if elapsed.iloc[-1] < float(case.get("duration_sec", 0.0)) * 0.8:
+                    raise ValueError("recording does not cover the expected duration")
                 gate = case.get("speed_gate", {})
                 if "chassis_speed_mps" in frame and gate:
                     speed = pd.to_numeric(frame["chassis_speed_mps"],
@@ -182,6 +198,20 @@ def analyze_phase1_suite(run_root, expected_plan=None):
                     lateral_accel = numeric["lateral_accel_mps2"]
                     if (abs(lateral_accel) > float(max_lateral_accel)).any():
                         raise ValueError("lateral acceleration safety limit failed")
+                from whl_dyn.collection.collector import evaluate_command_profile
+                profile = case.get("command_profile")
+                expected = np.array([
+                    evaluate_command_profile(profile, time)
+                    for time in elapsed.to_numpy()
+                ])
+                command = numeric["steering_command"].to_numpy()
+                if np.ptp(expected) <= 1e-9:
+                    raise ValueError("expected profile has no sampled steering excitation")
+                if not np.allclose(command, expected, rtol=1e-4, atol=1e-4):
+                    raise ValueError("recorded steering excitation does not match the plan")
+                for column in required[1:]:
+                    if np.ptp(numeric[column].to_numpy()) <= 1e-9:
+                        raise ValueError("no measurable response in {0}".format(column))
                 if test_type == "lateral_frequency_response":
                     metrics = analyze_lateral_frequency_response(frame)
                     for response in metrics["responses"].values():
@@ -190,10 +220,30 @@ def analyze_phase1_suite(run_root, expected_plan=None):
                                 not np.isfinite(coherence).all() or
                                 float(np.min(coherence)) < 0.5):
                             raise ValueError("frequency coherence gate failed")
+                elif test_type == "steering_step":
+                    step_frame = numeric.assign(time=elapsed.to_numpy())
+                    metrics = {
+                        column: analyze_step_response(
+                            step_frame, input_col="steering_command", output_col=column)
+                        for column in required[1:]
+                    }
+                elif test_type == "steering_deadzone_rate":
+                    feedback = numeric["steering_feedback"].to_numpy()
+                    metrics = {
+                        "sample_count": len(frame),
+                        "observed_feedback_range": float(np.ptp(feedback)),
+                        "peak_observed_feedback_rate": float(np.max(np.abs(
+                            np.diff(feedback) / np.diff(elapsed.to_numpy())))),
+                        "deadzone": None,
+                        "deadzone_unavailable_reason":
+                            "requires a configured feedback noise threshold and unit conversion",
+                    }
                 else:
-                    metrics = {"sample_count": len(frame)}
+                    raise ValueError("unsupported Phase 1 test type")
                 result = {"run": run_path.name, "case_name": case_name,
                           "status": "PASS",
+                          "status_scope": "execution_and_observable_response",
+                          "vehicle_acceptance": "NOT_EVALUATED",
                           "test_type": test_type, "metrics": metrics}
             except (ValueError, KeyError, OSError) as error:
                 result = {"run": run_path.name, "status": "FAIL",

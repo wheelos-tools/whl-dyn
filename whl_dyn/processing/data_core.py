@@ -1,5 +1,6 @@
 import os
 import glob
+import json
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -61,6 +62,11 @@ class DataCore:
         csv_files = glob.glob(str(Path(input_dir) / "*.csv"))
         for file_path in csv_files:
             try:
+                status_path = Path(file_path).with_suffix(".status.json")
+                if status_path.exists():
+                    status = json.loads(status_path.read_text())
+                    if not status.get("completed") or status.get("abort_reason"):
+                        raise ValueError("recording did not complete successfully")
                 df = pd.read_csv(file_path)
                 if not df.empty:
                     # Dynamic logs are handled by processing.dynamics and
@@ -89,7 +95,7 @@ class DataCore:
                         df['raw_accel'] = df['imu_accel_y']
 
                     self.raw_dfs.append(df)
-            except Exception as e:
+            except (OSError, ValueError, KeyError) as e:
                 print(f"Skipping {file_path}: {e}")
 
         if self.raw_dfs:
@@ -184,6 +190,7 @@ class DataCore:
         if not df_zero.empty: df_zero['accel_aligned'] = df_zero['accel_filtered']
 
         df = pd.concat([df_throttle, df_brake, df_zero], ignore_index=True)
+        df = df.sort_values(['source_file', 'time']).reset_index(drop=True)
         df = df.drop(columns=['command_segment'])
         df['aligned_speed'] = df['final_speed']
         df['is_outlier'] = False
@@ -271,26 +278,14 @@ class DataCore:
             points, values, (grid_x, grid_y), method='linear',
             fill_value=np.nan)
 
-        zero_cmd_idx = np.argmin(np.abs(command_grid))
-
-        # Enforce physical constraints / monotonicity
-        grid_z[zero_cmd_idx, :] = 0.0
-
-        for i in range(zero_cmd_idx + 1, len(command_grid)):
+        # Net acceleration includes drag, rolling resistance and grade.
+        # Its sign is not determined by the sign of the actuator command.
+        for i in range(1, len(command_grid)):
             valid = np.isfinite(grid_z[i, :])
             previous_valid = np.isfinite(grid_z[i - 1, :])
             both_valid = valid & previous_valid
             grid_z[i, both_valid] = np.maximum(
                 grid_z[i, both_valid], grid_z[i - 1, both_valid])
-            grid_z[i, valid] = np.maximum(grid_z[i, valid], 0.0)
-
-        for i in range(zero_cmd_idx - 1, -1, -1):
-            valid = np.isfinite(grid_z[i, :])
-            next_valid = np.isfinite(grid_z[i + 1, :])
-            both_valid = valid & next_valid
-            grid_z[i, both_valid] = np.minimum(
-                grid_z[i, both_valid], grid_z[i + 1, both_valid])
-            grid_z[i, valid] = np.minimum(grid_z[i, valid], 0.0)
 
         return speed_grid, command_grid, grid_z
 

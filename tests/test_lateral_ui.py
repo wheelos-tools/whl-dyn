@@ -9,7 +9,14 @@ from whl_dyn.ui.lateral import (
     _get_case_status_info,
     _save_case_temp_plan,
     _build_lateral_plan_df,
+    _format_response_metric,
 )
+
+
+def test_unidentifiable_response_metrics_render_as_unavailable():
+    assert _format_response_metric(None, "Hz") == "N/A"
+    assert _format_response_metric(None, "ms", 1000) == "N/A"
+    assert _format_response_metric(0.02, "ms", 1000) == "20.00 ms"
 
 
 def test_lateral_ui_plan_loading_and_temp_generation():

@@ -10,7 +10,9 @@ from scipy.optimize import curve_fit
 
 
 def _column(df, requested, candidates):
-    if requested and requested in df.columns:
+    if requested:
+        if requested not in df.columns:
+            raise ValueError("configured signal column is absent: {0}".format(requested))
         return requested
     for name in candidates:
         if name in df.columns:
@@ -21,7 +23,7 @@ def _column(df, requested, candidates):
 def _signals(df, input_col=None, output_col=None):
     if not isinstance(df, pd.DataFrame) or df.empty:
         raise ValueError("dynamic data must be a non-empty DataFrame")
-    time_col = _column(df, "time", ("timestamp",))
+    time_col = _column(df, None, ("time", "timestamp"))
     in_col = _column(df, input_col, ("command", "ctl_throttle", "input"))
     out_col = _column(df, output_col,
                       ("feedback", "output", "imu_accel_y", "acceleration", "speed_mps"))
@@ -30,7 +32,6 @@ def _signals(df, input_col=None, output_col=None):
         raise ValueError("dynamic data contains non-finite required samples")
     if len(values) < 4:
         raise ValueError("at least four valid samples are required")
-    values = values.sort_values(time_col).drop_duplicates(time_col)
     t = values[time_col].to_numpy(dtype=float)
     u = values[in_col].to_numpy(dtype=float)
     y = values[out_col].to_numpy(dtype=float)
@@ -41,9 +42,12 @@ def _signals(df, input_col=None, output_col=None):
 
 def _step_index(u):
     changes = np.abs(np.diff(u))
-    if not np.any(changes > 0):
+    indices = np.flatnonzero(changes > max(np.ptp(u) * 1e-6, 1e-12))
+    if not len(indices):
         raise ValueError("step analysis requires a command change")
-    return int(np.argmax(changes) + 1)
+    if len(indices) != 1:
+        raise ValueError("step analysis requires a single isolated command step")
+    return int(indices[0] + 1)
 
 
 def is_dynamic_log(df):
@@ -79,6 +83,8 @@ def identify_fopdt(df, input_col=None, output_col=None, step_index=None):
     if abs(delta_u) < 1e-12:
         raise ValueError("step amplitude is zero")
     gain = (y1 - y0) / delta_u
+    if abs(y1 - y0) < 1e-12:
+        raise ValueError("FOPDT output has no measurable response")
     tau_guess = max(float(t[-1] - t[index]) / 3.0, np.finfo(float).eps)
     dead_guess = max(float(t[index] - t[0]) * 0.05, 0.0)
 
@@ -96,9 +102,8 @@ def identify_fopdt(df, input_col=None, output_col=None, step_index=None):
             maxfev=20000,
         )
         offset, gain, tau, dead_time = [float(value) for value in params]
-    except (RuntimeError, ValueError):
-        # A threshold estimate remains useful for noisy or very short logs.
-        offset, tau, dead_time = y0, tau_guess, dead_guess
+    except (RuntimeError, ValueError) as error:
+        raise ValueError("FOPDT fit failed: {0}".format(error)) from error
 
     fitted = model(t, offset, gain, tau, dead_time)
     return {
@@ -108,6 +113,7 @@ def identify_fopdt(df, input_col=None, output_col=None, step_index=None):
         "time_constant_sec": float(tau),
         "dead_time_sec": float(dead_time),
         "offset": float(offset),
+        "fit_rmse": float(np.sqrt(np.mean((y - fitted) ** 2))),
         "step_index": index,
         "fit": {"time": t.tolist(), "value": fitted.tolist()},
     }
@@ -127,9 +133,9 @@ def analyze_step_response(df, input_col=None, output_col=None):
     delta_y = final_y - baseline_y
     if abs(delta_u) < 1e-12:
         raise ValueError("step amplitude is zero")
-    response = (y - baseline_y) / delta_y if abs(delta_y) > 1e-12 else np.zeros_like(y)
-    direction = 1.0 if delta_y >= 0 else -1.0
-    normalized = direction * response
+    if abs(delta_y) < 1e-12:
+        raise ValueError("step output has no measurable steady response")
+    normalized = (y - baseline_y) / delta_y
     after_t = t[index:] - t[index]
     after_norm = normalized[index:]
 
@@ -181,6 +187,7 @@ def analyze_step_response(df, input_col=None, output_col=None):
         "time_constant_sec": tau,
         "steady_state_error": steady_state_error,
         "steady_state_error_pct": steady_state_error_pct,
+        "steady_state_error_scope": "model_residual_not_controller_tracking_error",
         "fopdt": model,
         "data": {
             "time": t.tolist(),
@@ -200,8 +207,14 @@ def analyze_frequency_response(df, input_col=None, output_col=None,
                                sampling_rate_hz=None, nperseg=None):
     """Estimate frequency response, coherence, magnitude and phase."""
     t, u, y, in_col, out_col = _signals(df, input_col, output_col)
+    if np.ptp(y) <= 1e-12:
+        raise ValueError("frequency output has no measurable response")
     dt = float(np.median(np.diff(t)))
     fs = float(sampling_rate_hz) if sampling_rate_hz else 1.0 / dt
+    if not np.isfinite(fs) or fs <= 0.0:
+        raise ValueError("sampling rate must be finite and positive")
+    if not np.allclose(np.diff(t), 1.0 / fs, rtol=0.05, atol=1e-6):
+        raise ValueError("frequency analysis requires uniformly sampled data at the declared rate")
     segment = int(nperseg or min(256, len(t)))
     if segment < 4:
         raise ValueError("at least four samples are required for frequency analysis")
@@ -224,24 +237,37 @@ def analyze_frequency_response(df, input_col=None, output_col=None,
     magnitude = np.abs(response)
     magnitude_db = 20.0 * np.log10(np.maximum(magnitude, np.finfo(float).eps))
 
-    resonance_index = int(np.argmax(magnitude))
-    resonance_peak_db = float(magnitude_db[resonance_index])
-    resonance_peak_hz = float(frequencies[resonance_index])
+    coherent = np.flatnonzero(np.isfinite(coherence) & (coherence >= 0.6))
+    resonance_peak_db = None
+    resonance_peak_hz = None
+    if len(coherent):
+        resonance_index = coherent[int(np.argmax(magnitude[coherent]))]
+        resonance_peak_db = float(magnitude_db[resonance_index])
+        resonance_peak_hz = float(frequencies[resonance_index])
     bandwidth_hz = None
-    if len(magnitude_db) > 1:
-        reference_db = float(magnitude_db[0])
+    bandwidth_reason = "insufficient coherent low-frequency plateau or cutoff coverage"
+    bin_width = fs / min(segment, len(t))
+    if (len(magnitude_db) >= 4 and
+            np.all(np.isin(np.arange(3), coherent)) and
+            np.allclose(np.diff(frequencies[:3]), bin_width) and
+            np.ptp(magnitude_db[:3]) <= 1.0 and
+            frequencies[-1] >= 4.0 * frequencies[0]):
+        reference_db = float(np.mean(magnitude_db[:3]))
         cutoff_db = reference_db - 3.0
-        below = np.flatnonzero(magnitude_db <= cutoff_db)
-        if len(below):
-            bandwidth_hz = float(frequencies[int(below[0])])
+        for index in range(3, len(frequencies)):
+            if (index - 1 in coherent and index in coherent and
+                    np.isclose(frequencies[index] - frequencies[index - 1], bin_width) and
+                    magnitude_db[index - 1] > cutoff_db >= magnitude_db[index]):
+                fraction = ((cutoff_db - magnitude_db[index - 1]) /
+                            (magnitude_db[index] - magnitude_db[index - 1]))
+                bandwidth_hz = float(
+                    frequencies[index - 1] + fraction * bin_width)
+                bandwidth_reason = None
+                break
 
     delay_sec = None
-    coherent = np.flatnonzero(coherence >= 0.6)
     if len(coherent):
         delay_index = int(coherent[0])
-    else:
-        delay_index = 0
-    if frequencies[delay_index] > 0.0:
         delay_sec = float(-phase_rad[delay_index] / (2.0 * np.pi * frequencies[delay_index]))
     return {
         "input_signal": in_col,
@@ -253,9 +279,11 @@ def analyze_frequency_response(df, input_col=None, output_col=None,
         "phase_deg": phase_deg.astype(float).tolist(),
         "coherence": coherence.tolist(),
         "bandwidth_hz": bandwidth_hz,
+        "bandwidth_unavailable_reason": bandwidth_reason,
         "resonance_peak_db": resonance_peak_db,
         "resonance_peak_hz": resonance_peak_hz,
         "estimated_delay_sec": delay_sec,
+        "delay_kind": "phase_delay_not_transport_delay",
         "data": {
             "frequency_hz": frequencies.tolist(),
             "magnitude": magnitude.tolist(),
@@ -283,14 +311,15 @@ def analyze_dynamic(df, mode=None, input_col=None, output_col=None,
     mode_name = str(mode or "").lower().replace("-", "_").replace(" ", "_")
     if not mode_name and "mode" in df.columns and len(df):
         mode_name = str(df["mode"].iloc[0]).lower()
-    if mode_name in ("step",):
+    if mode_name in ("step", ""):
         return {"kind": "step", "result": analyze_step_response(df, input_col, output_col)}
     if mode_name in ("single_sine", "chirp", "sweep", "multi_sine", "prbs"):
         return {"kind": "frequency",
                 "result": analyze_frequency_response(df, input_col, output_col,
                                                      sampling_rate_hz)}
-    # A generic profile is still useful even if mode metadata was omitted.
-    return {"kind": "step", "result": analyze_step_response(df, input_col, output_col)}
+    raise ValueError(
+        "no quantitative analyzer for profile '{0}'; raw collection is supported "
+        "but step metrics do not apply".format(mode_name))
 
 
 def dynamic_plot_data(df, mode=None, input_col=None, output_col=None,

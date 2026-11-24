@@ -1,5 +1,9 @@
 # Lateral Vehicle-Dynamics Capability Assessment
 
+For the cross-domain comparison with industry practices and proposed
+priorities, see [test program assessment](test_program_assessment.md). This
+document describes lateral-specific capabilities and gaps.
+
 ## Current conclusion
 
 The repository **partially satisfies** the requested lateral test program.
@@ -20,14 +24,27 @@ listed below so that unavailable signals are not mistaken for passing results.
 - Chirp, Sweep, and PRBS steering excitation.
 - Speed stabilization before active excitation.
 - Separate steering command and actual steering feedback fields.
-- 50 Hz Phase 1 handling sampling, aligned with the simulator's 20 ms control
-  interval.
+- The default Phase 1 step/ramp plans use 50 Hz, aligned with the simulator's
+  20 ms control interval; frequency-response cases specify their own rates.
 - `steering_feedback -> yaw_rate_radps` and
   `steering_feedback -> lateral_accel_mps2` Bode reports.
 - Gain, phase, coherence, approximate -3 dB bandwidth, resonance peak, and
   phase-based delay estimates.
 - Generic Step metrics: dead time, 10--90% rise time, peak, overshoot,
   settling time, steady-state error, gain, and time constant.
+  The steady-state-error field is a model-fit residual, not controller error.
+- Phase 1 reports compare measured commands with the expected profile and
+  require observable steering feedback, yaw and lateral-acceleration responses.
+  Non-frequency cases no longer pass on sample count alone.
+- Step reports separate command-to-feedback and command-to-motion responses.
+  Slow ramps report observed range/rate, not a certified actuator rate limit;
+  deadzone remains unavailable without feedback-noise and unit configuration.
+
+Phase 1 `PASS` denotes execution/observable-response validation only;
+`vehicle_acceptance` remains `NOT_EVALUATED`. Frequency bandwidth requires a
+coherent low-frequency plateau and cutoff crossing. Nonuniform/gapped time
+series require explicit resampling before frequency analysis, not an assumed
+nominal sample rate. A single sine cannot establish broadband bandwidth.
 
 ### Not yet complete
 
@@ -36,7 +53,7 @@ listed below so that unavailable signals are not mistaken for passing results.
 - Multi-speed, multi-amplitude, left/right, and repeated Step/FRF matrices.
 - Sine-dwell or segmented single-frequency testing.
 - Standardized `beta`/`v_y`, steering torque, individual wheel angles, wheel
-  speeds, ESC/TCS/ABS status, and longitudinal acceleration fields.
+  speeds, TCS/ABS status, and longitudinal acceleration fields.
 - Bicycle-model parameter fitting, speed scheduling, or controller-ready
   state-space matrices.
 
@@ -60,21 +77,24 @@ and speed-outlier samples.
 `analyze-steady-state` reports actual steering statistics, speed, yaw rate,
 lateral acceleration, the small-sideslip curvature/radius approximation
 (`kappa ~= r / v_x`, `R ~= 1 / abs(kappa)`), steering gains, optional sideslip,
-ESC active fraction, wheel-slip peak, and configured limit flags.
+wheel-slip peak and configured limit flags.
 
 The `steering_feedback` mapping must be the actual steering-wheel angle for
 the “equal steering-wheel angle” interpretation. A separate effective
 road-wheel angle is required for understeer-gradient calculations.
+The Ku helper requires a finite positive wheelbase and distinct steady lateral
+accelerations. Its default curvature column is measured `curvature_1pm`;
+missing geometry or an unidentifiable regression is rejected.
 
 ### Still required for physical-limit conclusions
 
-- Reliable `beta` or `v_y`, wheel speeds/slip, ESC/TCS/ABS status, and steering
+- Reliable `beta` or `v_y`, wheel speeds/slip, TCS/ABS status, and steering
   torque mappings.
 - Automated linear/nonlinear/limit-region classification.
 - Persistent threshold logic for sideslip, sideslip growth, yaw-rate deviation,
-  lateral-acceleration saturation, wheel slip, and ESC intervention.
+  lateral-acceleration saturation and wheel slip.
 - Cross-run aggregation of maximum stable lateral acceleration, repeatability,
-  left/right differences, and the ESC intervention point.
+  left/right differences.
 - Front/rear axle saturation or tire-utilization estimation. These cannot be
   inferred reliably from `r` and `a_y` alone.
 
@@ -118,7 +138,7 @@ This follows the relevant Apollo `TrajectoryStitcher` time-matching and local
 - Steering command/feedback error, steering rate/acceleration, oscillation
   count, high-frequency control energy, and saturation duty cycle.
 - Reference versus measured yaw rate and lateral acceleration, sideslip, jerk,
-  tire utilization, ESC state, and online safety aborts.
+  tire utilization and online safety aborts.
 
 The runner must be the only publisher on `/apollo/planning`; stop or isolate
 the normal planning publisher before active execution.
@@ -132,7 +152,7 @@ pressure, load, temperature, road grade/crossfall, and surface condition.
 
 At minimum, a vehicle mapping should expose effective road-wheel angle, speed,
 `r`, center-of-mass-compensated `a_y`, `v_y` or `beta`, roll, wheel speeds,
-ESC/TCS/ABS state, and source timestamps. Missing optional signals must be
+TCS/ABS state, and source timestamps. Missing optional signals must be
 reported as unavailable.
 
 ## Sources

@@ -87,7 +87,6 @@ def _parser():
     steady.add_argument("--steering-wheel-column", default="steering_feedback")
     steady.add_argument("--road-wheel-column")
     steady.add_argument("--sideslip-column", default="sideslip_rad")
-    steady.add_argument("--esc-column", default="esc_active")
     steady.add_argument("--wheel-slip-column", default="wheel_slip_ratio")
     steady.add_argument("--wheelbase-m", type=float)
     steady.add_argument("--max-abs-sideslip-rad", type=float)
@@ -281,7 +280,7 @@ def main():
             metrics = fixed_steering_steady_state_metrics(
                 selected, steering_wheel_column=args.steering_wheel_column,
                 road_wheel_column=args.road_wheel_column,
-                sideslip_column=args.sideslip_column, esc_column=args.esc_column,
+                sideslip_column=args.sideslip_column,
                 wheel_slip_column=args.wheel_slip_column, wheelbase_m=args.wheelbase_m,
                 max_abs_sideslip_rad=args.max_abs_sideslip_rad,
                 max_sideslip_rate_radps=args.max_sideslip_rate_radps,

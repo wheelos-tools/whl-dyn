@@ -35,9 +35,9 @@ The resulting step and slow-ramp cases are collected with
 `time_aligned` flag. The plan covers positive and negative steering:
 
 ```text
-step:      command -> front/rear feedback -> yaw rate -> lateral acceleration
-slow ramp: deadzone, hysteresis, actual steering-rate limit
-chirp/PRBS: gain, phase, bandwidth, coherence and delay
+step:       command -> steering feedback and vehicle motion response
+slow ramp:  observed feedback range and rate
+chirp/PRBS: feedback-to-motion gain, phase and coherence; bandwidth if identifiable
 ```
 
 Run open-loop profiles only with `--execute --arm`; record-only remains the
@@ -49,8 +49,10 @@ command as the primary yaw/acceleration frequency-response input.
 1. Start a **record-only** run and confirm that `samples.csv` contains
    `steering_feedback`, `chassis_speed_mps`, `yaw_rate_radps`, and
    `lateral_accel_mps2`; confirm the feedback unit/sign changes as expected.
-2. Run the two small positive/negative slow-ramp cases.  These identify
-   deadzone, hysteresis and achieved wheel rate without an intentional step.
+2. Run the two small positive/negative slow-ramp cases. These record feedback
+   range and observed rate without an intentional step. Quantitative deadzone
+   and hysteresis identification requires additional analysis and configuration;
+   observed rate is not a certified maximum actuator rate.
 3. Run the two small positive/negative steering-step cases.  A command step is
    intentional; report measured command-to-feedback and feedback-to-yaw
    timing separately.
@@ -178,12 +180,11 @@ It writes `analysis/steady_state_metrics.json`, including the actual speed,
 actual steering-wheel and road-wheel angle statistics, mean yaw rate and
 lateral acceleration, the small-sideslip curvature/radius estimate
 (`kappa ~= r/v_x`, `R ~= 1/abs(kappa)`), yaw-rate and lateral-acceleration
-gain, sideslip, ESC active fraction, wheel-slip peak, and available limit
-flags.
+gain, sideslip, wheel-slip peak, and available limit flags.
 
-`sideslip_rad`, `esc_active`, and `wheel_slip_ratio` are optional vehicle
-mapping columns. A missing column is written as unavailable; it is never
-treated as proof that the vehicle remained stable. Configure
+`sideslip_rad` and `wheel_slip_ratio` are optional vehicle mapping columns. A
+missing column is written as unavailable; it is never treated as proof that
+the vehicle remained stable. Configure
 `steering_feedback` as the actual steering-wheel angle for this test, and
 map a separate effective road-wheel angle column when calculating vehicle
 gains or understeer gradient. The steady-state and tracking processors filter

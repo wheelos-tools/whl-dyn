@@ -1,5 +1,9 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+import pytest
+import yaml
 
 from whl_dyn.collection.closed_loop import build_path_from_case
 from whl_dyn.planning.handling import (
@@ -156,7 +160,7 @@ def test_handling_metrics_fit_known_understeer_gradient_and_tracking():
     steering = 2.0 * lateral_accel + 2.5 * kappa + 0.1
     frame = pd.DataFrame({
         "steering_rad": steering,
-        "reference_kappa_1pm": kappa,
+        "curvature_1pm": kappa,
         "lateral_accel_mps2": lateral_accel,
         "lateral_error_m": [0.01, -0.02, 0.03, -0.04],
         "heading_error_rad": [0.01, -0.01, 0.02, -0.02],
@@ -167,6 +171,45 @@ def test_handling_metrics_fit_known_understeer_gradient_and_tracking():
     assert np.isclose(handling["understeer_gradient_rad_per_mps2"], 2.0)
     assert np.isclose(handling["steering_offset_rad"], 0.1)
     assert np.isclose(tracking["ey_peak_m"], 0.04)
+
+
+def test_understeer_gradient_requires_geometry_and_distinct_operating_points():
+    ay = np.linspace(0.2, 2.0, 10)
+    frame = pd.DataFrame({
+        "curvature_1pm": ay / 25.0,
+        "steering_rad": 2.5 * ay / 25.0,
+        "lateral_accel_mps2": ay,
+    })
+    result = steady_state_handling_metrics(frame, "steering_rad", wheelbase_m=2.5)
+    assert result["understeer_gradient_rad_per_mps2"] == pytest.approx(0.0, abs=1e-12)
+    for wheelbase in (None, 0, np.nan):
+        with pytest.raises(ValueError, match="wheelbase"):
+            steady_state_handling_metrics(frame, "steering_rad", wheelbase_m=wheelbase)
+    frame["lateral_accel_mps2"] = 1.0
+    with pytest.raises(ValueError, match="distinct"):
+        steady_state_handling_metrics(frame, "steering_rad", wheelbase_m=2.5)
+
+
+def test_phase1_frequency_directions_have_distinct_mirrored_excitation():
+    from whl_dyn.collection.collector import evaluate_command_profile
+    shipped = yaml.safe_load(
+        (Path(__file__).resolve().parents[1] / "plans/phase1_complete.yaml").read_text())
+    for cases in (generate_phase1_plan(output="", amplitude=2.0), shipped):
+        for mode in ("chirp", "prbs"):
+            pair = [case for case in cases if case.get("mode") == mode]
+            traces = [np.array([evaluate_command_profile(case["command_profile"], t)
+                                for t in np.arange(0.0, 10.0, 0.02)]) for case in pair]
+            assert np.ptp(traces[0]) > 0
+            np.testing.assert_allclose(traces[0], -traces[1])
+
+
+@pytest.mark.parametrize("options", [
+    {"amplitude": np.nan}, {"max_steering": np.nan},
+    {"max_steering": 1.0}, {"target_speed_mps": np.inf},
+])
+def test_open_loop_generation_rejects_invalid_vehicle_test_limits(options):
+    with pytest.raises(ValueError):
+        generate_open_loop_identification_plan(output="", **options)
 
 
 def test_handling_metrics_reject_invalid_quality_rows():
@@ -204,7 +247,6 @@ def test_fixed_steering_metrics_report_available_limit_signals():
         "yaw_rate_radps": [0.2, 0.2, 0.2],
         "lateral_accel_mps2": [2.0, 2.0, 2.0],
         "sideslip_rad": [0.01, 0.03, 0.05],
-        "esc_active": [0, 1, 1],
         "wheel_slip_ratio": [0.01, 0.02, 0.03],
         "elapsed_sec": [1.0, 2.0, 3.0],
     })
@@ -214,6 +256,6 @@ def test_fixed_steering_metrics_report_available_limit_signals():
         max_abs_sideslip_rad=0.04, max_abs_wheel_slip=0.025)
     assert np.isclose(metrics["radius_mean_m"], 50.0)
     assert metrics["limit_flags"]["sideslip_exceeded"]
-    assert metrics["limit_flags"]["esc_intervention"]
     assert metrics["limit_flags"]["wheel_slip_exceeded"]
+    assert "esc_active_fraction" not in metrics
     assert metrics["limit_detected"]

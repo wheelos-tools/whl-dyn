@@ -161,7 +161,7 @@
   command_profile:
     type: chirp
     baseline: 0.0
-    amplitude: 10.0
+    amplitude: -10.0
     start_time_sec: 0.0
     end_time_sec: 30.0
     duration_sec: 30.0
@@ -172,8 +172,8 @@
     prbs_seed: 7
     pulse_duration_sec: 1.0
     frequency_hz: 0.5
-    prbs_low: -10.0
-    prbs_high: 10.0
+    prbs_low: 10.0
+    prbs_high: -10.0
 - case_name: phase1_prbs_+1
   description: Steering prbs for lateral vehicle frequency response.
   domain: vehicle_dynamics
@@ -257,7 +257,7 @@
   command_profile:
     type: prbs
     baseline: 0.0
-    amplitude: 10.0
+    amplitude: -10.0
     start_time_sec: 0.0
     end_time_sec: 30.0
     duration_sec: 30.0
@@ -268,5 +268,5 @@
     prbs_seed: 7
     pulse_duration_sec: 1.0
     frequency_hz: 0.5
-    prbs_low: -10.0
-    prbs_high: 10.0
+    prbs_low: 10.0
+    prbs_high: -10.0

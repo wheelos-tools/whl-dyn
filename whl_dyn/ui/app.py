@@ -607,6 +607,8 @@ def get_metric_rating(value: float, metric_type: str) -> dict:
     Get rating (grade 0-100, color, label) for a metric value.
     Returns position 0-100 for vertical scale marker.
     """
+    if value is None:
+        return {"grade": 0, "color": "#9E9E9E", "label": "不可辨识"}
     if metric_type == "mae":
         # MAE: 越小越好 (业界标准)
         if value < 0.10:
@@ -1114,7 +1116,11 @@ if category == "🚗 油门/刹车":
                 )
                 if st.button("💾 保存计划修改", key="btn_save_long_yaml_plan"):
                     try:
-                        yaml.safe_load(edited_yaml)
+                        from whl_dyn.planning.preflight import validate_longitudinal_plan
+                        edited_plan = yaml.safe_load(edited_yaml)
+                        if isinstance(edited_plan, dict):
+                            edited_plan = edited_plan.get("cases", [edited_plan])
+                        validate_longitudinal_plan(edited_plan)
                         plan_path.write_text(edited_yaml, encoding="utf-8")
                         st.success(f"计划修改已保存: {plan_path}")
                         st.rerun()
@@ -1917,7 +1923,8 @@ if category == "🚗 油门/刹车":
                 t_dz = metrics.get("throttle_deadzone_pct", 0)
                 rating_t_dz = get_metric_rating(t_dz, "deadzone")
                 throttle_metrics.append(
-                    (f"油门死区", f"{t_dz:.0f}%", rating_t_dz, "最小指令产生响应的阈值")
+                    ("油门响应阈值", f"{t_dz:.0f}%" if t_dz is not None else "N/A",
+                     rating_t_dz, "相对实测滑行响应；缺少基线时不可辨识")
                 )
 
                 t_r2 = metrics.get("throttle_linearity_R2", 0)
@@ -1946,7 +1953,7 @@ if category == "🚗 油门/刹车":
                             f"平均误差",
                             f"{t_mae:.3f}",
                             rating_t_mae,
-                            "主要评价指标：越小越好",
+                            "样本内拟合误差，不代表独立试验精度",
                         )
                     )
                     t_rmse = metrics.get("throttle_residual_rmse", 0)
@@ -1956,7 +1963,7 @@ if category == "🚗 油门/刹车":
                             f"均方根误差",
                             f"{t_rmse:.3f}",
                             rating_t_rmse,
-                            "主要评价指标：越小越好",
+                            "样本内拟合误差，不代表独立试验精度",
                         )
                     )
 
@@ -1968,7 +1975,8 @@ if category == "🚗 油门/刹车":
                 b_dz = metrics.get("brake_deadzone_pct", 0)
                 rating_b_dz = get_metric_rating(b_dz, "deadzone")
                 brake_metrics.append(
-                    (f"刹车死区", f"{b_dz:.0f}%", rating_b_dz, "最小指令产生响应的阈值")
+                    ("刹车响应阈值", f"{b_dz:.0f}%" if b_dz is not None else "N/A",
+                     rating_b_dz, "相对实测滑行响应；缺少基线时不可辨识")
                 )
 
                 b_r2 = metrics.get("brake_linearity_R2", 0)
@@ -1997,7 +2005,7 @@ if category == "🚗 油门/刹车":
                             f"平均误差",
                             f"{b_mae:.3f}",
                             rating_b_mae,
-                            "主要评价指标：越小越好",
+                            "样本内拟合误差，不代表独立试验精度",
                         )
                     )
                     b_rmse = metrics.get("brake_residual_rmse", 0)
@@ -2007,7 +2015,7 @@ if category == "🚗 油门/刹车":
                             f"均方根误差",
                             f"{b_rmse:.3f}",
                             rating_b_rmse,
-                            "主要评价指标：越小越好",
+                            "样本内拟合误差，不代表独立试验精度",
                         )
                     )
 

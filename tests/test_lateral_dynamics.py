@@ -1,8 +1,10 @@
-from types import SimpleNamespace
+import sys
 import time
+from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import pandas as pd
+import pytest
 import yaml
 
 from whl_dyn.collection.lateral import (
@@ -15,6 +17,8 @@ from whl_dyn.planning.vehicle_dynamics import (
     LateralFrequencyPlanConfig,
     generate_lateral_frequency_plan,
 )
+from whl_dyn.planning.handling import generate_phase1_plan
+from whl_dyn.collection.collector import evaluate_command_profile
 from whl_dyn.processing.lateral_dynamics import (
     analyze_phase1_suite,
     analyze_lateral_frequency_response,
@@ -146,6 +150,35 @@ def test_snapshot_reports_source_alignment_and_requires_feedback_source():
     assert np.isclose(not_aligned["alignment_skew_sec"], 0.05)
 
 
+def test_lateral_control_defaults_to_drive_gear(monkeypatch):
+    class ControlCommand:
+        def __init__(self):
+            self.header = SimpleNamespace()
+            self.pad_msg = SimpleNamespace()
+
+    wheelos_msgs = ModuleType("wheelos_msgs")
+    wheelos_msgs.__path__ = []
+    control_msgs = ModuleType("wheelos_msgs.control_msgs")
+    control_msgs.__path__ = []
+    control_cmd_pb2 = ModuleType(
+        "wheelos_msgs.control_msgs.control_cmd_pb2")
+    control_cmd_pb2.ControlCommand = ControlCommand
+    control_msgs.control_cmd_pb2 = control_cmd_pb2
+    monkeypatch.setitem(sys.modules, "wheelos_msgs", wheelos_msgs)
+    monkeypatch.setitem(sys.modules, "wheelos_msgs.control_msgs", control_msgs)
+    monkeypatch.setitem(
+        sys.modules, "wheelos_msgs.control_msgs.control_cmd_pb2",
+        control_cmd_pb2)
+
+    writer = SimpleNamespace(messages=[])
+    writer.write = writer.messages.append
+    collector = LateralSignalCollector(None, {})
+    collector._writer = writer
+    collector.publish_control(0.0, speed_target_mps=1.0)
+
+    assert writer.messages[0].gear_location == 1
+
+
 def test_timestamped_storage_does_not_overwrite_same_case(tmp_path):
     first = RunStorage(tmp_path, "chirp", {"run": 1})
     second = RunStorage(tmp_path, "chirp", {"run": 2})
@@ -163,7 +196,7 @@ def test_localization_signal_normalization_uses_vehicle_frame_axes():
             angular_velocity_vrf=SimpleNamespace(z=0.2),
             linear_acceleration_vrf=SimpleNamespace(x=-1.5),
             heading=0.0,
-            euler_angles=SimpleNamespace(x=0.1),
+            euler_angles=SimpleNamespace(x=0.1, y=0.2),
         ),
     )
     assert nested_value(message, "pose.angular_velocity_vrf.z") == 0.2
@@ -174,6 +207,7 @@ def test_localization_signal_normalization_uses_vehicle_frame_axes():
     assert values["lateral_velocity_mps"] == 4.0
     assert values["yaw_rate_radps"] == 0.2
     assert values["lateral_accel_mps2"] == 1.5
+    assert values["roll_rad"] == 0.2
 
 
 def test_localization_signal_normalization_rejects_missing_dynamics_fields():
@@ -258,3 +292,68 @@ def test_phase1_report_requires_expected_cases_and_quality(tmp_path):
                                 dict(metadata["case"], case_name="missing")])
     assert report["status"] == "FAIL"
     assert report["results"][-1]["missing_cases"] == ["missing"]
+
+
+def _write_phase1_run(root, case, mutation=None):
+    fs = case["sampling_rate_hz"]
+    elapsed = np.arange(0, case["duration_sec"], 1.0 / fs)
+    command = np.array([evaluate_command_profile(case["command_profile"], t)
+                        for t in elapsed])
+    if case["test_type"] == "steering_step":
+        profile = case["command_profile"]
+        response = profile["baseline"] + profile["amplitude"] * (
+            1.0 - np.exp(-np.maximum(elapsed - profile["start_time_sec"], 0.0) / 0.2))
+    else:
+        response = command
+    frame = pd.DataFrame({
+        "elapsed_sec": elapsed, "steering_command": command,
+        "steering_feedback": 0.5 * response,
+        "yaw_rate_radps": 0.02 * response, "lateral_accel_mps2": 0.1 * response,
+        "chassis_speed_mps": case["speed_gate"]["target_mps"],
+        "time_aligned": True, "localization_signals_valid": True,
+        "localization_age_sec": 0.01, "chassis_age_sec": 0.01,
+    })
+    if mutation:
+        mutation(frame)
+    run = root / case["case_name"]
+    run.mkdir()
+    frame.to_csv(run / "samples.csv", index=False)
+    (run / "metadata.yaml").write_text(yaml.safe_dump({"case": case}))
+    (run / "status.json").write_text('{"completed": true}')
+
+
+def test_phase1_reports_both_directions_step_ramp_and_frequency(tmp_path):
+    plan = generate_phase1_plan(output="", amplitude=2.0)
+    for case in plan:
+        _write_phase1_run(tmp_path, case)
+    report = analyze_phase1_suite(tmp_path, expected_plan=plan)
+    assert report["status"] == "PASS", report
+    assert report["run_count"] == 8
+    for result in report["results"]:
+        assert result["vehicle_acceptance"] == "NOT_EVALUATED"
+        if result["test_type"] == "steering_step":
+            assert result["metrics"]["steering_feedback"]["time_constant_sec"] == pytest.approx(0.2, abs=0.02)
+        if result["test_type"] == "steering_deadzone_rate":
+            assert result["metrics"]["deadzone"] is None
+            assert result["metrics"]["peak_observed_feedback_rate"] > 0
+
+
+@pytest.mark.parametrize("column", [
+    "steering_command", "steering_feedback", "yaw_rate_radps", "lateral_accel_mps2",
+])
+def test_phase1_rejects_missing_excitation_or_response(tmp_path, column):
+    case = generate_phase1_plan(output="", amplitude=2.0)[0]
+    _write_phase1_run(tmp_path, case, lambda frame: frame.__setitem__(column, 0.0))
+    report = analyze_phase1_suite(tmp_path, expected_plan=[case])
+    assert report["status"] == "FAIL"
+    assert ("excitation" in report["results"][0]["reason"] or
+            "no measurable response" in report["results"][0]["reason"])
+
+
+def test_phase1_does_not_trust_modified_recorded_plan(tmp_path):
+    case = generate_phase1_plan(output="", amplitude=2.0)[0]
+    _write_phase1_run(tmp_path, case)
+    expected = dict(case, duration_sec=100.0)
+    report = analyze_phase1_suite(tmp_path, expected_plan=[expected])
+    assert report["status"] == "FAIL"
+    assert "expected plan" in report["results"][0]["reason"]

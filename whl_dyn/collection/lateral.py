@@ -81,7 +81,7 @@ def localization_signals(message, received_time):
         "lateral_accel_mps2": (
             -float(lateral_accel_vrf_right)
             if lateral_accel_vrf_right is not None else float("nan")),
-        "roll_rad": float(nested_value(message, "pose.euler_angles.x", 0.0)),
+        "roll_rad": float(nested_value(message, "pose.euler_angles.y", 0.0)),
     }
 
 
@@ -391,7 +391,7 @@ class LateralSignalCollector:
             "brake": 0.0,
         }
         control.setdefault(
-            "gear_location", int(self.config.get("control_gear_location", 3)))
+            "gear_location", int(self.config.get("control_gear_location", 1)))
         mode = str(control.get("mode", "speed")).lower()
         if mode not in ("speed", "throttle"):
             raise ValueError("longitudinal control mode must be speed or throttle")
@@ -399,7 +399,7 @@ class LateralSignalCollector:
         message.throttle = float(control.get("throttle", 0.0)) if mode == "throttle" else 0.0
         message.brake = float(control.get("brake", 0.0))
         message.gear_location = int(control.get(
-            "gear_location", self.config.get("control_gear_location", 3)))
+            "gear_location", self.config.get("control_gear_location", 1)))
         message.steering_target = float(steering_command) * command_scale
         message.pad_msg.driving_mode = 1
         message.pad_msg.action = 1
@@ -593,7 +593,7 @@ class LateralSignalCollector:
                         "throttle": 0.0,
                         "brake": float(self.config.get("stop_brake", 30.0)),
                         "gear_location": int(self.config.get(
-                            "control_gear_location", 3)),
+                            "control_gear_location", 1)),
                     },
                 )
             if samples:

@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Optional
 
 import yaml
+from whl_dyn.planning.preflight import validate_open_loop_plan
 
 
 SUPPORTED_LATERAL_PROFILES = ("pulse", "single_sine", "chirp", "sweep", "prbs")
@@ -156,6 +157,7 @@ def generate_lateral_frequency_plan(args=None, output=None, **kwargs):
         "command_profile": profile,
     }
     plan = [case]
+    validate_open_loop_plan(plan)
     destination = values.get("output") if output is None else output
     if destination:
         with open(destination, "w") as plan_file:

@@ -28,6 +28,10 @@ from whl_dyn.processing.lateral_dynamics import write_lateral_frequency_report
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _format_response_metric(value, unit, scale=1.0):
+    return "N/A" if value is None else "{0:.2f} {1}".format(value * scale, unit)
+
+
 def _load_plan_cases(plan_path: Path) -> List[Dict]:
     """Load case dictionary list from YAML plan."""
     if not plan_path.exists():
@@ -830,18 +834,18 @@ def render_lateral_analysis(runtime_dir: Path):
                     with r_col1:
                         st.markdown("**🧭 转向 -> 横摆角速度 (Yaw Rate)**")
                         m1, m2, m3 = st.columns(3)
-                        m1.metric("带宽 (Bandwidth)", f"{yr.get('bandwidth_hz', 0.0):.2f} Hz")
-                        m2.metric("共振峰值", f"{yr.get('resonance_peak_db', 0.0):.1f} dB")
-                        m3.metric("估计延迟", f"{yr.get('estimated_delay_sec', 0.0)*1000:.1f} ms")
+                        m1.metric("带宽 (Bandwidth)", _format_response_metric(yr.get("bandwidth_hz"), "Hz"))
+                        m2.metric("相干频点峰值", _format_response_metric(yr.get("resonance_peak_db"), "dB"))
+                        m3.metric("相位延迟（非纯滞后）", _format_response_metric(yr.get("estimated_delay_sec"), "ms", 1000))
 
                 if "lateral_acceleration" in responses:
                     la = responses["lateral_acceleration"]
                     with r_col2:
                         st.markdown("**📈 转向 -> 横向加速度 (Lateral Accel)**")
                         m1, m2, m3 = st.columns(3)
-                        m1.metric("带宽 (Bandwidth)", f"{la.get('bandwidth_hz', 0.0):.2f} Hz")
-                        m2.metric("共振峰值", f"{la.get('resonance_peak_db', 0.0):.1f} dB")
-                        m3.metric("估计延迟", f"{la.get('estimated_delay_sec', 0.0)*1000:.1f} ms")
+                        m1.metric("带宽 (Bandwidth)", _format_response_metric(la.get("bandwidth_hz"), "Hz"))
+                        m2.metric("相干频点峰值", _format_response_metric(la.get("resonance_peak_db"), "dB"))
+                        m3.metric("相位延迟（非纯滞后）", _format_response_metric(la.get("estimated_delay_sec"), "ms", 1000))
 
                 st.markdown("---")
                 # Tabs for Bode plots

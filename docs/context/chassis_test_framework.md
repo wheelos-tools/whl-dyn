@@ -33,3 +33,4 @@ planning -> collection / trajectory execution -> timestamped run -> processing
 - [`../lateral_vehicle_dynamics.md`](../lateral_vehicle_dynamics.md)
 - [`../handling_test_phases.md`](../handling_test_phases.md)
 - [`../open_loop_lateral_identification_assessment.md`](../open_loop_lateral_identification_assessment.md)
+- [`../test_program_assessment.md`](../test_program_assessment.md)

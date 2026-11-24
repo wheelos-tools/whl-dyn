@@ -2,15 +2,20 @@
 
 ## Install
 
-The package metadata and dependencies are defined in
-[`pyproject.toml`](../pyproject.toml).
+Python 3.9 or newer is required. The package metadata and dependencies are
+defined in [`pyproject.toml`](../pyproject.toml).
 
 ```bash
 python3 -m pip install -e .
 ```
 
-For Apollo/CyberRT collection, run the command in the vehicle integration
-environment where the required protobuf modules are available.
+Installation includes the published `wheelos-msgs` wheel, which supplies the
+generated planning and other WheelOS protobuf modules. It requires
+`protobuf>=5.27.1,<6`; do not bypass dependency resolution with `--no-deps`.
+Use a separate compatible Python environment if other tools require protobuf
+6 or newer. For Apollo/CyberRT collection, CyberRT must also be available in
+that environment; it is provided by the vehicle integration environment, not
+this package.
 
 ## Entry points
 
