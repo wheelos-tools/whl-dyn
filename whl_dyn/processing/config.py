@@ -13,6 +13,10 @@ class CalibrationConfig:
     lowpass_order: int = 6
     lowpass_cutoff: float = 1.0
     sampling_rate: float = 100.0
+    # Collector logs may run at a different rate.  DataCore derives the
+    # effective rate from timestamps and uses this only as a fallback.
+    filter_edge_guard_ms: int = 1000
+    sampling_rate_tolerance_pct: float = 5.0
 
     # --- Outlier Detection (LOF) ---
     enable_lof: bool = True

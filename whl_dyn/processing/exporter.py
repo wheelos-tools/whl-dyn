@@ -1,7 +1,9 @@
 import os
 import json
+import warnings
 from pathlib import Path
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 class Exporter:
@@ -56,11 +58,26 @@ class Exporter:
 
     @staticmethod
     def save_protobuf(speed_grid, command_grid, grid_z, output_dir):
+        grid_z = np.asarray(grid_z, dtype=float)
+        if grid_z.shape != (len(command_grid), len(speed_grid)):
+            raise ValueError("calibration grid shape does not match its axes")
+        if not (np.isfinite(speed_grid).all() and
+                np.isfinite(command_grid).all()):
+            raise ValueError("calibration grid axes must be finite")
+        valid = np.isfinite(grid_z)
+        if not valid.any():
+            raise ValueError("no measured calibration coverage to export")
+        if not valid.all():
+            warnings.warn(
+                "Omitting {0} non-finite calibration cells; export covers only "
+                "the valid data domain.".format(int((~valid).sum())),
+                RuntimeWarning, stacklevel=2)
         filepath = Path(output_dir) / "calibration_table.pb.txt"
         with open(filepath, 'w') as f:
             for i, speed in enumerate(speed_grid):
                 for j, command in enumerate(command_grid):
-                    if abs(grid_z[j, i]) < 0.001: continue
+                    if not valid[j, i]:
+                        continue
                     f.write("calibration {\n")
                     f.write(f"  speed: {speed}\n")
                     f.write(f"  acceleration: {grid_z[j, i]}\n")
